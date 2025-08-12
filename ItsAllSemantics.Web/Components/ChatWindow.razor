@@ -1,0 +1,21 @@
+@using ItsAllSemantics.Web.Models
+@using ItsAllSemantics.Web.Components
+
+<div class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+    @if (Messages is { Count: > 0 })
+    {
+        @foreach (var message in Messages)
+        {
+            <ChatMessage Message="message" />
+        }
+    }
+    else
+    {
+        <p class="text-slate-400 text-sm">No messages yet. Say hello!</p>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public required List<ChatMessageModel> Messages { get; set; }
+}

@@ -1,0 +1,51 @@
+﻿@page "/"
+
+<PageTitle>Home</PageTitle>
+
+<section class="flex flex-col gap-4 h-[75vh]">
+    <ChatWindow Messages="messages" />
+    @if (isWaitingForResponse)
+    {
+        <div class="text-xs text-slate-400">AI is typing…</div>
+    }
+    <ChatInput OnSend="HandleSend" />
+</section>
+
+@code {
+    private readonly List<ChatMessageModel> messages = [];
+    private HubConnection? hubConnection;
+    private bool isWaitingForResponse;
+
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var baseUri = Nav.BaseUri.TrimEnd('/');
+        hubConnection = new HubConnectionBuilder()
+        .WithUrl(new Uri(new Uri(baseUri + "/"), "hubs/chat"))
+        .WithAutomaticReconnect()
+        .Build();
+
+        hubConnection.On<ChatMessageModel>("ReceiveMessage", (msg) =>
+        {
+            messages.Add(msg);
+            if (msg.Author.Equals("ai", StringComparison.OrdinalIgnoreCase))
+            {
+                isWaitingForResponse = false;
+            }
+            InvokeAsync(StateHasChanged);
+        });
+
+        await hubConnection.StartAsync();
+
+        // Seed a friendly greeting
+        messages.Add(new ChatMessageModel("Hello! I’m your AI assistant.", "ai", DateTimeOffset.Now));
+    }
+
+    private async Task HandleSend(string text)
+    {
+        if (hubConnection is null) return;
+        isWaitingForResponse = true;
+        await hubConnection.SendAsync("SendMessage", text);
+    }
+}
