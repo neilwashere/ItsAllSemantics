@@ -15,6 +15,7 @@
     private readonly List<ChatMessageModel> messages = [];
     private HubConnection? hubConnection;
     private bool isWaitingForResponse;
+    private long typingTicket; // increments per send to invalidate old timeouts
 
     [Inject] private NavigationManager Nav { get; set; } = default!;
 
@@ -29,10 +30,8 @@
         hubConnection.On<ChatMessageModel>("ReceiveMessage", (msg) =>
         {
             messages.Add(msg);
-            if (msg.Author.Equals("ai", StringComparison.OrdinalIgnoreCase))
-            {
-                isWaitingForResponse = false;
-            }
+            // Hide typing indicator when any non-user message arrives (agent names may vary)
+            if (!msg.IsUser) isWaitingForResponse = false;
             InvokeAsync(StateHasChanged);
         });
 
@@ -45,7 +44,36 @@
     private async Task HandleSend(string text)
     {
         if (hubConnection is null) return;
+
+        // Mark waiting and start a safety timeout tied to this send
+        var ticket = System.Threading.Interlocked.Increment(ref typingTicket);
         isWaitingForResponse = true;
-        await hubConnection.SendAsync("SendMessage", text);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30));
+                if (System.Threading.Volatile.Read(ref typingTicket) == ticket && isWaitingForResponse)
+                {
+                    isWaitingForResponse = false;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+            catch { /* ignored */ }
+        });
+
+        try
+        {
+            await hubConnection.SendAsync("SendMessage", text);
+        }
+        catch
+        {
+            // If send fails, clear the indicator
+            if (System.Threading.Volatile.Read(ref typingTicket) == ticket)
+            {
+                isWaitingForResponse = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
     }
 }

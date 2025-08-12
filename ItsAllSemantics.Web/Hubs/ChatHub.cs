@@ -13,7 +13,26 @@ public class ChatHub(IChatResponder responder) : Hub
         await Clients.Caller.SendAsync("ReceiveMessage", userMsg);
 
         // Get response via configured responder (echo or SK)
-        var aiMsg = await responder.GetResponseAsync(message);
-        await Clients.Caller.SendAsync("ReceiveMessage", aiMsg);
+        var sessionId = Context.ConnectionId;
+        try
+        {
+            var aiMsg = await responder.GetResponseAsync(message, sessionId);
+            await Clients.Caller.SendAsync("ReceiveMessage", aiMsg);
+        }
+        catch
+        {
+            // Ensure client clears typing indicator even on failure
+            var err = new ChatMessageModel("Sorry, I hit an error generating a reply.", "ai", DateTimeOffset.Now);
+            await Clients.Caller.SendAsync("ReceiveMessage", err);
+        }
+    }
+
+    public override Task OnDisconnectedAsync(Exception? exception)
+    {
+        if (responder is SemanticKernelChatResponder sk)
+        {
+            sk.RemoveSession(Context.ConnectionId);
+        }
+        return base.OnDisconnectedAsync(exception);
     }
 }

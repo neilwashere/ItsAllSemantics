@@ -3,6 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Agents.Chat;
+using Microsoft.SemanticKernel.Agents;
+using Microsoft.SemanticKernel.Text;
 
 namespace ItsAllSemantics.Web.Services;
 
@@ -10,7 +13,8 @@ public sealed class SemanticKernelChatResponder : IChatResponder
 {
     private readonly SemanticKernelOptions _options;
     private readonly Kernel _kernel;
-    private readonly IChatCompletionService _chat;
+    private readonly ChatCompletionAgent _agent;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, AgentThread> _threads = new();
 
     public SemanticKernelChatResponder(IOptions<SemanticKernelOptions> options)
     {
@@ -30,24 +34,41 @@ public sealed class SemanticKernelChatResponder : IChatResponder
                 apiKey: _options.ApiKey);
         }
         _kernel = builder.Build();
-        _chat = _kernel.GetRequiredService<IChatCompletionService>();
+
+        _agent = new ChatCompletionAgent
+        {
+            Name = "AImee",
+            Instructions = "You are a concise, helpful assistant. Keep answers short unless asked to elaborate.",
+            Kernel = _kernel
+        };
     }
 
-    public async Task<ChatMessageModel> GetResponseAsync(string userMessage, CancellationToken ct = default)
+    private AgentThread GetOrCreateThread(string sessionId)
     {
-        var history = new ChatHistory();
-        history.AddSystemMessage("You are a helpful assistant. Be concise.");
-        history.AddUserMessage(userMessage);
+        return _threads.GetOrAdd(sessionId, static _ =>
+            new ChatHistoryAgentThread([new ChatMessageContent(AuthorRole.System, "You are a helpful assistant. Be concise.")]));
+    }
 
-        var message = await _chat.GetChatMessageContentAsync(
-            history,
-            executionSettings: null,
-            kernel: _kernel,
-            cancellationToken: ct);
+    public async Task<ChatMessageModel> GetResponseAsync(string userMessage, string sessionId, CancellationToken ct = default)
+    {
+        var thread = GetOrCreateThread(sessionId);
 
-        var content = message?.Content?.Trim();
+        var user = new ChatMessageContent(AuthorRole.User, userMessage);
+
+        ChatMessageContent? last = null;
+        await foreach (var response in _agent.InvokeAsync(user, thread, options: null, cancellationToken: ct))
+        {
+            last = response;
+        }
+
+        var content = last?.Content?.Trim();
         if (string.IsNullOrWhiteSpace(content)) content = "(No response)";
-        return new ChatMessageModel(content, "ai", DateTimeOffset.Now);
+        return new ChatMessageModel(content, _agent.Name ?? "ai", DateTimeOffset.Now);
+    }
+
+    public void RemoveSession(string sessionId)
+    {
+        _threads.TryRemove(sessionId, out _);
     }
 }
 

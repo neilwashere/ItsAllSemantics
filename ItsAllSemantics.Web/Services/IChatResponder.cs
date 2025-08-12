@@ -4,5 +4,6 @@ namespace ItsAllSemantics.Web.Services;
 
 public interface IChatResponder
 {
-    Task<ChatMessageModel> GetResponseAsync(string userMessage, CancellationToken ct = default);
+    // sessionId is used to maintain multi-turn conversation state (e.g., SignalR ConnectionId)
+    Task<ChatMessageModel> GetResponseAsync(string userMessage, string sessionId, CancellationToken ct = default);
 }
