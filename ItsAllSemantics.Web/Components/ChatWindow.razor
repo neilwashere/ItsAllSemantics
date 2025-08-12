@@ -1,7 +1,8 @@
 @using ItsAllSemantics.Web.Models
 @using ItsAllSemantics.Web.Components
+@inject IJSRuntime JS
 
-<div class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+<div id="chat-window" class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
     @if (Messages is { Count: > 0 })
     {
         @foreach (var message in Messages)
@@ -18,4 +19,20 @@
 @code {
     [Parameter]
     public required List<ChatMessageModel> Messages { get; set; }
+
+    private int _lastMessageCount;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Avoid JS interop during prerender (first render). Run after hydration and when messages change.
+        if (!firstRender)
+        {
+            var count = Messages?.Count ?? 0;
+            if (count != _lastMessageCount)
+            {
+                _lastMessageCount = count;
+                await JS.InvokeVoidAsync("ias.scrollToBottom", "#chat-window");
+            }
+        }
+    }
 }

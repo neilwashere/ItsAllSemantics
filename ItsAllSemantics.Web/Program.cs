@@ -1,5 +1,6 @@
 using ItsAllSemantics.Web.Components;
 using ItsAllSemantics.Web.Hubs;
+using ItsAllSemantics.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +8,18 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddSignalR();
+
+// Feature flag controls which responder is used
+var useSk = builder.Configuration.GetValue<bool>("Features:UseSemanticKernel");
+builder.Services.Configure<SemanticKernelOptions>(builder.Configuration.GetSection("SemanticKernel"));
+if (useSk)
+{
+    builder.Services.AddSingleton<IChatResponder, SemanticKernelChatResponder>();
+}
+else
+{
+    builder.Services.AddSingleton<IChatResponder, EchoChatResponder>();
+}
 
 var app = builder.Build();
 

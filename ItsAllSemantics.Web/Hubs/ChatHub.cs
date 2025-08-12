@@ -1,9 +1,10 @@
 using ItsAllSemantics.Web.Models;
+using ItsAllSemantics.Web.Services;
 using Microsoft.AspNetCore.SignalR;
 
 namespace ItsAllSemantics.Web.Hubs;
 
-public class ChatHub : Hub
+public class ChatHub(IChatResponder responder) : Hub
 {
     public async Task SendMessage(string message)
     {
@@ -11,9 +12,8 @@ public class ChatHub : Hub
         var userMsg = new ChatMessageModel(message, "user", DateTimeOffset.Now);
         await Clients.Caller.SendAsync("ReceiveMessage", userMsg);
 
-        // Naive AI placeholder
-        var aiText = $"You said: '{message}'. I'll respond intelligently once SK is wired.";
-        var aiMsg = new ChatMessageModel(aiText, "ai", DateTimeOffset.Now);
+        // Get response via configured responder (echo or SK)
+        var aiMsg = await responder.GetResponseAsync(message);
         await Clients.Caller.SendAsync("ReceiveMessage", aiMsg);
     }
 }
