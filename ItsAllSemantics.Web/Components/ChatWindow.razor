@@ -14,13 +14,37 @@
     {
         <p class="text-slate-400 text-sm">No messages yet. Say hello!</p>
     }
+
+    @if (IsStreaming)
+    {
+        <div class="flex items-start gap-3">
+            <div
+                class="w-10 h-10 rounded-full bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                AI</div>
+            <div
+                class="bg-white/10 backdrop-blur-md ring-1 ring-white/10 rounded-tl-none shadow-md p-3 rounded-lg max-w-lg">
+                <p class="text-sm whitespace-pre-wrap">
+                    @StreamingText
+                    <span class="ias-caret"></span>
+                </p>
+                <p class="text-[10px] text-slate-400 mt-1">@DateTime.Now.ToString("t")</p>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
     [Parameter]
     public required List<ChatMessageModel> Messages { get; set; }
 
+    [Parameter]
+    public bool IsStreaming { get; set; }
+
+    [Parameter]
+    public string? StreamingText { get; set; }
+
     private int _lastMessageCount;
+    private int _lastStreamingLength;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -28,9 +52,11 @@
         if (!firstRender)
         {
             var count = Messages?.Count ?? 0;
-            if (count != _lastMessageCount)
+            var streamLen = IsStreaming ? (StreamingText?.Length ?? 0) : 0;
+            if (count != _lastMessageCount || streamLen != _lastStreamingLength)
             {
                 _lastMessageCount = count;
+                _lastStreamingLength = streamLen;
                 await JS.InvokeVoidAsync("ias.scrollToBottom", "#chat-window");
             }
         }

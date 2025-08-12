@@ -66,6 +66,37 @@ public sealed class SemanticKernelChatResponder : IChatResponder
         return new ChatMessageModel(content, _agent.Name ?? "ai", DateTimeOffset.Now);
     }
 
+    public string Name => _agent.Name ?? "ai";
+
+    public async IAsyncEnumerable<string> StreamResponseAsync(
+        string userMessage,
+        string sessionId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    {
+        // Generate the full response using the agent to preserve multi-turn context,
+        // then stream it to the client in chunks (simulation for now).
+        var thread = GetOrCreateThread(sessionId);
+        var user = new ChatMessageContent(AuthorRole.User, userMessage);
+
+        ChatMessageContent? last = null;
+        await foreach (var response in _agent.InvokeAsync(user, thread, options: null, cancellationToken: ct))
+        {
+            last = response;
+        }
+
+        var content = last?.Content ?? string.Empty;
+        if (string.IsNullOrEmpty(content)) yield break;
+
+        // Chunk by words for a smoother feel
+        foreach (var piece in content.Split(' '))
+        {
+            ct.ThrowIfCancellationRequested();
+            // include the space we split on
+            yield return piece + " ";
+            await Task.Delay(40, ct);
+        }
+    }
+
     public void RemoveSession(string sessionId)
     {
         _threads.TryRemove(sessionId, out _);

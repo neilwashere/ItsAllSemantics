@@ -24,6 +24,29 @@ h1:focus {
     outline: none;
 }
 
+/* Blinking caret for streaming AI */
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0;
+    }
+}
+
+.ias-caret {
+    display: inline-block;
+    width: 0.5rem;
+    height: 1em;
+    background-color: #cbd5e1;
+    /* slate-300 */
+    vertical-align: baseline;
+    margin-left: 0.125rem;
+    animation: pulse 1s steps(1, end) infinite;
+}
 .valid.modified:not([type=checkbox]) {
     outline: 1px solid #26b050;
 }

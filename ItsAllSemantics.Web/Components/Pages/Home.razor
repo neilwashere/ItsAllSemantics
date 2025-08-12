@@ -3,11 +3,12 @@
 <PageTitle>Home</PageTitle>
 
 <section class="flex flex-col gap-4 h-[75vh]">
-    <ChatWindow Messages="messages" />
-    @if (isWaitingForResponse)
+    <ChatWindow Messages="messages" IsStreaming="isStreaming" StreamingText="streamingText" />
+    @if (isWaitingForResponse && !isStreaming)
     {
         <div class="text-xs text-slate-400">AI is typing…</div>
     }
+    @* Streaming bubble rendered inside ChatWindow *@
     <ChatInput OnSend="HandleSend" />
 </section>
 
@@ -16,6 +17,8 @@
     private HubConnection? hubConnection;
     private bool isWaitingForResponse;
     private long typingTicket; // increments per send to invalidate old timeouts
+    private bool isStreaming;
+    private string streamingText = string.Empty;
 
     [Inject] private NavigationManager Nav { get; set; } = default!;
 
@@ -35,6 +38,28 @@
             InvokeAsync(StateHasChanged);
         });
 
+        hubConnection.On<string>("ReceiveStreamStart", (agentName) =>
+        {
+            isStreaming = true;
+            streamingText = string.Empty;
+            isWaitingForResponse = false; // suppress typing banner during streaming
+            InvokeAsync(StateHasChanged);
+        });
+
+        hubConnection.On<string>("ReceiveStreamDelta", (delta) =>
+        {
+            streamingText += delta;
+            InvokeAsync(StateHasChanged);
+        });
+
+        hubConnection.On("ReceiveStreamEnd", () =>
+        {
+            isStreaming = false;
+            messages.Add(new ChatMessageModel(streamingText, "ai", DateTimeOffset.Now));
+            streamingText = string.Empty;
+            InvokeAsync(StateHasChanged);
+        });
+
         await hubConnection.StartAsync();
 
         // Seed a friendly greeting
@@ -45,7 +70,7 @@
     {
         if (hubConnection is null) return;
 
-        // Mark waiting and start a safety timeout tied to this send
+        // Mark waiting and start a safety timeout tied to this send (only when not streaming)
         var ticket = System.Threading.Interlocked.Increment(ref typingTicket);
         isWaitingForResponse = true;
         _ = Task.Run(async () =>

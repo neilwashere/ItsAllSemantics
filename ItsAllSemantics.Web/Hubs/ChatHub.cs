@@ -12,18 +12,23 @@ public class ChatHub(IChatResponder responder) : Hub
         var userMsg = new ChatMessageModel(message, "user", DateTimeOffset.Now);
         await Clients.Caller.SendAsync("ReceiveMessage", userMsg);
 
-        // Get response via configured responder (echo or SK)
+        // Stream response via configured responder (echo or SK)
         var sessionId = Context.ConnectionId;
+        var ct = Context.ConnectionAborted;
         try
         {
-            var aiMsg = await responder.GetResponseAsync(message, sessionId);
-            await Clients.Caller.SendAsync("ReceiveMessage", aiMsg);
+            await Clients.Caller.SendAsync("ReceiveStreamStart", responder.Name);
+            await foreach (var piece in responder.StreamResponseAsync(message, sessionId, ct))
+            {
+                await Clients.Caller.SendAsync("ReceiveStreamDelta", piece);
+            }
+            await Clients.Caller.SendAsync("ReceiveStreamEnd");
         }
         catch
         {
-            // Ensure client clears typing indicator even on failure
-            var err = new ChatMessageModel("Sorry, I hit an error generating a reply.", "ai", DateTimeOffset.Now);
-            await Clients.Caller.SendAsync("ReceiveMessage", err);
+            // On error, still close the stream and provide a fallback message chunk
+            await Clients.Caller.SendAsync("ReceiveStreamDelta", "[Response failed]");
+            await Clients.Caller.SendAsync("ReceiveStreamEnd");
         }
     }
 
