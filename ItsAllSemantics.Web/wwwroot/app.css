@@ -1,6 +1,13 @@
 html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background: #2D2A2E;
+    color: #FCFCFA;
+    height:100%;
+    overflow:hidden; /* prevent page scroll; chat area handles its own */
 }
+
+/* Alignment tuning variable for bubble outer edge vs input panel */
+:root { --ias-align-nudge:4px; }
 
 a, .btn-link {
     color: #006bb7;
@@ -37,16 +44,7 @@ h1:focus {
     }
 }
 
-.ias-caret {
-    display: inline-block;
-    width: 0.5rem;
-    height: 1em;
-    background-color: #cbd5e1;
-    /* slate-300 */
-    vertical-align: baseline;
-    margin-left: 0.125rem;
-    animation: pulse 1s steps(1, end) infinite;
-}
+.ias-caret { display:inline-block;width:2px;height:1em;background-color:#FCFCFA;margin-left:2px;animation:pulse 1s steps(1,end) infinite; }
 .valid.modified:not([type=checkbox]) {
     outline: 1px solid #26b050;
 }
@@ -81,3 +79,51 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+/* Scrollbar styling */
+.custom-scrollbar { scrollbar-width:thin; scrollbar-color:#494b53 #222327; }
+.custom-scrollbar::-webkit-scrollbar { width:8px; }
+.custom-scrollbar::-webkit-scrollbar-track { background:#222327; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background:#494b53; border-radius:4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background:#7b7d8b; }
+
+/* Chat bubbles */
+.chat-bubble { max-width:70%; position:relative; padding:0.75rem 0.9rem 0.85rem 0.9rem; border-radius:1.1rem; font-size:0.9rem; box-shadow:0 4px 8px -2px rgba(0,0,0,0.35),0 0 0 1px rgba(255,255,255,0.02); display:flex; flex-direction:column; gap:0.5rem; margin-left:0; margin-right:0; }
+.chat-bubble.from-ai { background:#3b3a3f; border:1px solid #494b53; color:#FCFCFA; border-bottom-left-radius:0.55rem; margin-left:var(--ias-align-nudge); }
+.chat-bubble.from-user { background:#AB9DF2; color:#2D2A2E; font-weight:500; border:1px solid #B9AEF5; border-bottom-right-radius:0.55rem; margin-right:0; }
+.chat-bubble.streaming { outline:1px dashed #78DCE8; }
+.chat-bubble .bubble-meta { display:flex; align-items:center; gap:0.4rem; font-size:0.63rem; letter-spacing:0.075em; text-transform:uppercase; opacity:0.7; font-weight:600; }
+.chat-bubble .bubble-meta i { font-size:0.7rem; opacity:0.9; }
+.chat-bubble .bubble-meta time { margin-left:auto; font-weight:500; opacity:0.55; }
+.chat-bubble .bubble-text { line-height:1.5; white-space:pre-wrap; word-break:break-word; }
+/* (old timestamp class removed; replaced by meta/time) */
+
+/* Input adjustments */
+textarea[data-chat-input] { caret-color:#FF6188; }
+
+/* Utility overrides */
+button:focus-visible, textarea:focus-visible { outline:2px solid #78DCE8; outline-offset:2px; }
+
+/* Dedicated chat window scrollbar (full-height thin bar at extreme right) */
+#chat-window { scrollbar-width:thin; scrollbar-color:#494b53 transparent; }
+#chat-window::-webkit-scrollbar { width:6px; }
+#chat-window::-webkit-scrollbar-track { background:transparent; }
+#chat-window::-webkit-scrollbar-thumb { background:#494b53; border-radius:3px; }
+#chat-window::-webkit-scrollbar-thumb:hover { background:#7b7d8b; }
+#chat-window::-webkit-scrollbar-button { display:none; width:0; height:0; }
+
+/* Full-bleed scroll container so scrollbar sits at viewport edge */
+.edge-scroll { width:100vw; position:relative; left:50%; right:50%; margin-left:-50vw; margin-right:-50vw; }
+/* Preserve inner content centering handled by inner max-w-4xl wrapper */
+
+/* Extra subtle variant for very low-contrast bar */
+.edge-scroll::-webkit-scrollbar { width:4px; }
+.edge-scroll { scrollbar-width:thin; }
+.edge-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.08); border-radius:2px; }
+.edge-scroll::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.18); }
+
+/* Blazor error UI positioning so it doesn't force scrollbar */
+#blazor-error-ui { position:fixed; bottom:1rem; left:50%; transform:translateX(-50%); background:#b32121; color:#fff; padding:0.75rem 1rem; border-radius:0.75rem; box-shadow:0 6px 16px -4px rgba(0,0,0,0.5); font-size:0.85rem; z-index:2000; display:none; }
+#blazor-error-ui a { color:#fff; text-decoration:underline; }
+#blazor-error-ui .dismiss { cursor:pointer; margin-left:0.75rem; }
+#blazor-error-ui.show { display:block; }

@@ -1,0 +1,237 @@
+@page "/"
+@rendermode InteractiveServer
+@using ItsAllSemantics.Web.Models
+@implements IDisposable
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ILogger<Chat>? Log
+
+<PageTitle>Chat</PageTitle>
+
+<section class="flex flex-col flex-1 h-full min-h-0">
+    <div class="chat-shell w-full flex flex-col flex-1 relative min-h-0">
+    <div id="chat-window" class="chat-window edge-scroll flex-1 overflow-y-auto min-h-0">
+            <div class="max-w-4xl mx-auto w-full px-4 pt-6 pb-40 space-y-6">
+        @if (messages is { Count: > 0 })
+        {
+            @foreach (var message in messages)
+            {
+                var isUser = message.IsUser;
+                <div class="flex @(isUser ? "justify-end" : "justify-start")" style="max-width:100%;">
+                    <div class="chat-bubble @(isUser ? "from-user" : "from-ai")">
+                        <div class="bubble-meta">
+                            @if (isUser)
+                            {
+                                <i class="fa-solid fa-user"></i>
+                                <span>You</span>
+                            }
+                            else
+                            {
+                                <i class="fa-solid fa-robot"></i>
+                                <span>Assistant</span>
+                            }
+                            <time>@message.Timestamp.LocalDateTime.ToString("t")</time>
+                        </div>
+                        <div class="bubble-text">@message.Text</div>
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <p class="text-slate-400 text-sm">No messages yet. Say hello!</p>
+        }
+
+            @if (isStreaming)
+            {
+                <div class="flex justify-start" style="max-width:100%;">
+                    <div class="chat-bubble from-ai streaming">
+                        <div class="bubble-meta">
+                            <i class="fa-solid fa-robot"></i>
+                            <span>Assistant</span>
+                            <time>@DateTime.Now.ToString("t")</time>
+                        </div>
+                        <div class="bubble-text">@streamingText<span class="ias-caret"></span></div>
+                    </div>
+                </div>
+            }
+            </div>
+        </div>
+
+    @if (isWaitingForResponse && !isStreaming)
+    {
+        <div class="text-xs text-slate-400">AI is typing…</div>
+    }
+
+    <form @onsubmit="HandleSubmit" @onsubmit:preventDefault class="chat-input-container sticky bottom-0 left-0 right-0 z-20 px-4 pb-2 pt-3 backdrop-blur-sm">
+            <div class="bg-[#3b3a3f]/95 border border-[#494b53] rounded-xl p-2 flex flex-col gap-2 shadow-xl ring-1 ring-black/40">
+                <textarea @bind="pendingMessage" @bind:event="oninput" rows="1" data-autosize data-chat-input
+                          placeholder="Message ItsAllSemantics..." class="w-full bg-transparent focus:outline-none p-2 text-sm text-[#FCFCFA] resize-none leading-6 custom-scrollbar max-h-56 overflow-y-auto"></textarea>
+                <div class="flex justify-end gap-2">
+                    <button type="submit" data-ias-send aria-label="Send" title="Send"
+                            class="bg-[#78DCE8] hover:bg-[#A9DC76] transition-colors text-[#2D2A2E] font-bold w-10 h-10 flex items-center justify-center rounded-full disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled="@string.IsNullOrWhiteSpace(pendingMessage)">
+                        <i class="fas fa-arrow-up"></i>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+@code {
+    private readonly List<ChatMessageModel> messages = [];
+    private HubConnection? hubConnection;
+    private string? pendingMessage;
+    private bool isWaitingForResponse;
+    private bool isStreaming;
+    private string streamingText = string.Empty;
+    private long typingTicket;
+    private System.Threading.Timer? _renderTimer;
+
+    private int _lastMessageCount;
+    private int _lastStreamingLength;
+    private long _lastRenderTicks;
+    private DateTime _lastScrollAt = DateTime.MinValue;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var baseUri = Nav.BaseUri.TrimEnd('/');
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(new Uri(new Uri(baseUri + "/"), "hubs/chat"), options =>
+            {
+                options.SkipNegotiation = false;
+                options.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.WebSockets;
+            })
+            .WithAutomaticReconnect()
+            .ConfigureLogging(lb =>
+            {
+                lb.SetMinimumLevel(LogLevel.Warning);
+                lb.AddFilter("Microsoft.AspNetCore.SignalR", LogLevel.Warning);
+                lb.AddFilter("Microsoft.AspNetCore.Http.Connections", LogLevel.Warning);
+                lb.AddConsole();
+            })
+            .Build();
+
+        hubConnection.On<ChatMessageModel>("ReceiveMessage", async (msg) =>
+        {
+            messages.Add(msg);
+            if (!msg.IsUser) isWaitingForResponse = false;
+            await InvokeAsync(StateHasChanged);
+        });
+
+        hubConnection.On<string>("ReceiveStreamStart", async _ =>
+        {
+            isStreaming = true;
+            streamingText = string.Empty;
+            isWaitingForResponse = false;
+            _renderTimer = new System.Threading.Timer(_ =>
+            {
+                InvokeAsync(async () =>
+                {
+                    StateHasChanged();
+                    await Task.Delay(1);
+                    await JS.InvokeVoidAsync("ias.scrollToBottom", "#chat-window");
+                });
+            }, null, TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(100));
+            await InvokeAsync(StateHasChanged);
+        });
+
+        hubConnection.On<string>("ReceiveStreamDelta", async (delta) =>
+        {
+            await InvokeAsync(() =>
+            {
+                streamingText += delta;
+                StateHasChanged();
+            });
+        });
+
+        hubConnection.On("ReceiveStreamEnd", async () =>
+        {
+            _renderTimer?.Dispose();
+            _renderTimer = null;
+            isStreaming = false;
+            messages.Add(new ChatMessageModel(streamingText, "ai", DateTimeOffset.Now));
+            streamingText = string.Empty;
+            await InvokeAsync(StateHasChanged);
+        });
+
+        await hubConnection.StartAsync();
+        Log?.LogInformation("[CLIENT] Hub connected at={Time}", DateTime.UtcNow.ToString("O"));
+
+        messages.Add(new ChatMessageModel("Hello! I’m your AI assistant.", "ai", DateTimeOffset.Now));
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (string.IsNullOrWhiteSpace(pendingMessage) || hubConnection is null) return;
+    var text = pendingMessage;
+    pendingMessage = string.Empty; // hub echo will add user message
+
+        var ticket = System.Threading.Interlocked.Increment(ref typingTicket);
+        isWaitingForResponse = true;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30));
+                if (System.Threading.Volatile.Read(ref typingTicket) == ticket && isWaitingForResponse)
+                {
+                    isWaitingForResponse = false;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+            catch { }
+        });
+
+        try
+        {
+            await hubConnection.SendAsync("SendMessage", text);
+        }
+        catch (Exception ex)
+        {
+            Log?.LogWarning(ex, "Send failed");
+            if (System.Threading.Volatile.Read(ref typingTicket) == ticket)
+            {
+                isWaitingForResponse = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            var count = messages.Count;
+            var streamLen = isStreaming ? streamingText.Length : 0;
+            if (count != _lastMessageCount || streamLen != _lastStreamingLength)
+            {
+                _lastMessageCount = count;
+                _lastStreamingLength = streamLen;
+                var now = System.Diagnostics.Stopwatch.GetTimestamp();
+                var dt = (_lastRenderTicks == 0) ? 0 : (now - _lastRenderTicks) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                _lastRenderTicks = now;
+                Log?.LogDebug("[RENDER] Chat scroll -> msgs={Msgs} streamLen={Len} dtSinceLastRender={DtMs:F1}ms", count, streamLen, dt);
+                if (isStreaming)
+                {
+                    if ((DateTime.UtcNow - _lastScrollAt) > TimeSpan.FromMilliseconds(100))
+                    {
+                        _lastScrollAt = DateTime.UtcNow;
+                        _ = JS.InvokeVoidAsync("ias.scrollToBottom", "#chat-window");
+                    }
+                }
+                else
+                {
+                    await JS.InvokeVoidAsync("ias.scrollToBottom", "#chat-window");
+                }
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        _renderTimer?.Dispose();
+        hubConnection?.DisposeAsync();
+    }
+}

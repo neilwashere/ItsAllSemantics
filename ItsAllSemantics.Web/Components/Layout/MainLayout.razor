@@ -1,17 +1,21 @@
 ﻿@inherits LayoutComponentBase
 
-<Header />
-
-<main class="flex-1 overflow-y-auto container mx-auto px-4 py-6">
-    @Body
-
-</main>
-
-<footer class="bg-slate-800/50 backdrop-blur-sm p-4 mt-auto">
-    <div class="container mx-auto text-xs text-slate-400">
-        <span>© @DateTime.Now.Year ItsAllSemantics</span>
-    </div>
-</footer>
+<div class="min-h-screen h-screen flex flex-col bg-[#2D2A2E] overflow-hidden">
+    <Header />
+    <main class="flex-1 flex flex-col px-0 sm:px-4 py-4 sm:py-6 text-slate-300 overflow-hidden min-h-0">
+        <div class="flex-1 flex flex-col min-h-0">
+            <div class="max-w-4xl mx-auto flex-1 flex flex-col w-full min-h-0">
+                @Body
+            </div>
+        </div>
+    </main>
+    <footer class="bg-[#222327]/80 backdrop-blur-sm border-t border-[#3b3a3f] p-4 text-xs text-slate-500">
+        <div class="max-w-4xl mx-auto w-full flex justify-between">
+            <span>© @DateTime.Now.Year ItsAllSemantics</span>
+            <span class="opacity-60">Monokai Pro inspired</span>
+        </div>
+    </footer>
+</div>
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
