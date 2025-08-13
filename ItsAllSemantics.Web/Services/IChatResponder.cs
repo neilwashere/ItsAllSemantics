@@ -10,7 +10,7 @@ public interface IChatResponder
     // sessionId is used to maintain multi-turn conversation state (e.g., SignalR ConnectionId)
     Task<ChatMessageModel> GetResponseAsync(string userMessage, string sessionId, CancellationToken ct = default);
 
-    // Streaming tokens/fragments of the assistant response. Implementation should also persist
-    // the final assistant message into the session's conversation state when enumeration completes.
-    IAsyncEnumerable<string> StreamResponseAsync(string userMessage, string sessionId, CancellationToken ct = default);
+    // Streaming events for the assistant response. Implementation should persist the final
+    // assistant message into the session's conversation state when an End event is emitted.
+    IAsyncEnumerable<StreamingChatEvent> StreamResponseAsync(string userMessage, string sessionId, CancellationToken ct = default);
 }

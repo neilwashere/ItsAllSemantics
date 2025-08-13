@@ -6,6 +6,7 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Agents.Chat;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.Text;
+using System.Collections.Concurrent;
 
 namespace ItsAllSemantics.Web.Services;
 
@@ -14,7 +15,9 @@ public sealed class SemanticKernelChatResponder : IChatResponder
     private readonly SemanticKernelOptions _options;
     private readonly Kernel _kernel;
     private readonly ChatCompletionAgent _agent;
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, AgentThread> _threads = new();
+    private readonly ConcurrentDictionary<string, AgentThread> _threads = new();
+    private readonly IChatCompletionService _chat;
+    private readonly ConcurrentDictionary<string, ChatHistory> _histories = new();
 
     public SemanticKernelChatResponder(IOptions<SemanticKernelOptions> options)
     {
@@ -34,6 +37,7 @@ public sealed class SemanticKernelChatResponder : IChatResponder
                 apiKey: _options.ApiKey);
         }
         _kernel = builder.Build();
+        _chat = _kernel.GetRequiredService<IChatCompletionService>();
 
         _agent = new ChatCompletionAgent
         {
@@ -47,6 +51,16 @@ public sealed class SemanticKernelChatResponder : IChatResponder
     {
         return _threads.GetOrAdd(sessionId, static _ =>
             new ChatHistoryAgentThread([new ChatMessageContent(AuthorRole.System, "You are a helpful assistant. Be concise.")]));
+    }
+
+    private ChatHistory GetOrCreateHistory(string sessionId)
+    {
+        return _histories.GetOrAdd(sessionId, static _ =>
+        {
+            var h = new ChatHistory();
+            h.Add(new ChatMessageContent(AuthorRole.System, "You are a helpful assistant. Be concise."));
+            return h;
+        });
     }
 
     public async Task<ChatMessageModel> GetResponseAsync(string userMessage, string sessionId, CancellationToken ct = default)
@@ -63,38 +77,54 @@ public sealed class SemanticKernelChatResponder : IChatResponder
 
         var content = last?.Content?.Trim();
         if (string.IsNullOrWhiteSpace(content)) content = "(No response)";
-        return new ChatMessageModel(content, _agent.Name ?? "ai", DateTimeOffset.Now);
+        return new ChatMessageModel(content, Name, DateTimeOffset.Now);
     }
 
     public string Name => _agent.Name ?? "ai";
 
-    public async IAsyncEnumerable<string> StreamResponseAsync(
+    public async IAsyncEnumerable<StreamingChatEvent> StreamResponseAsync(
         string userMessage,
         string sessionId,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
-        // Generate the full response using the agent to preserve multi-turn context,
-        // then stream it to the client in chunks (simulation for now).
-        var thread = GetOrCreateThread(sessionId);
-        var user = new ChatMessageContent(AuthorRole.User, userMessage);
+        var history = GetOrCreateHistory(sessionId);
+        history.Add(new ChatMessageContent(AuthorRole.User, userMessage));
 
-        ChatMessageContent? last = null;
-        await foreach (var response in _agent.InvokeAsync(user, thread, options: null, cancellationToken: ct))
+        var streamId = Guid.NewGuid().ToString("N");
+        yield return new StreamingChatEvent { Kind = StreamingChatEventKind.Start, StreamId = streamId, Agent = Name };
+
+        var builder = new System.Text.StringBuilder();
+        await foreach (var part in _chat.GetStreamingChatMessageContentsAsync(history, executionSettings: null, _kernel, ct))
         {
-            last = response;
+            // Prefer fine-grained items when available
+            if (part is StreamingChatMessageContent msg)
+            {
+                bool yielded = false;
+                if (msg.Items is not null)
+                {
+                    foreach (var item in msg.Items)
+                    {
+                        if (item is StreamingTextContent st && !string.IsNullOrEmpty(st.Text))
+                        {
+                            builder.Append(st.Text);
+                            yield return new StreamingChatEvent { Kind = StreamingChatEventKind.Delta, StreamId = streamId, Agent = Name, TextDelta = st.Text };
+                            yielded = true;
+                        }
+                    }
+                }
+
+                // Fallback to message-level content
+                if (!yielded && !string.IsNullOrEmpty(msg.Content))
+                {
+                    builder.Append(msg.Content);
+                    yield return new StreamingChatEvent { Kind = StreamingChatEventKind.Delta, StreamId = streamId, Agent = Name, TextDelta = msg.Content };
+                }
+            }
         }
 
-        var content = last?.Content ?? string.Empty;
-        if (string.IsNullOrEmpty(content)) yield break;
-
-        // Chunk by words for a smoother feel
-        foreach (var piece in content.Split(' '))
-        {
-            ct.ThrowIfCancellationRequested();
-            // include the space we split on
-            yield return piece + " ";
-            await Task.Delay(40, ct);
-        }
+        var final = builder.ToString();
+        history.Add(new ChatMessageContent(AuthorRole.Assistant, final));
+        yield return new StreamingChatEvent { Kind = StreamingChatEventKind.End, StreamId = streamId, Agent = Name, FinalText = final };
     }
 
     public void RemoveSession(string sessionId)

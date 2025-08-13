@@ -5,9 +5,30 @@ using ItsAllSemantics.Web.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
-builder.Services.AddSignalR();
+builder.Services.AddRazorComponents(options =>
+{
+    // Reduce render batching for real-time updates
+    options.DetailedErrors = builder.Environment.IsDevelopment();
+})
+    .AddInteractiveServerComponents(options =>
+    {
+        // Configure for real-time streaming
+        options.DetailedErrors = builder.Environment.IsDevelopment();
+        options.DisconnectedCircuitMaxRetained = 100;
+        options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(3);
+        options.JSInteropDefaultCallTimeout = TimeSpan.FromMinutes(1);
+        options.MaxBufferedUnacknowledgedRenderBatches = 2; // Reduce buffering
+    });
+builder.Services.AddSignalR(options =>
+{
+    // Reduce buffering for real-time streaming
+    options.EnableDetailedErrors = true;
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+    options.HandshakeTimeout = TimeSpan.FromSeconds(15);
+    options.MaximumReceiveMessageSize = null; // Remove size limits
+    options.StreamBufferCapacity = 1; // Minimize stream buffering
+});
 
 // Feature flag controls which responder is used
 var useSk = builder.Configuration.GetValue<bool>("Features:UseSemanticKernel");

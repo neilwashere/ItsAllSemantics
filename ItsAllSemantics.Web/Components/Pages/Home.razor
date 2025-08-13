@@ -1,14 +1,20 @@
 ﻿@page "/"
+@rendermode InteractiveServer
+@using Microsoft.Extensions.Logging
+@using ItsAllSemantics.Web.Components
+@using ItsAllSemantics.Web.Models
+@implements IDisposable
 
 <PageTitle>Home</PageTitle>
 
 <section class="flex flex-col gap-4 h-[75vh]">
     <ChatWindow Messages="messages" IsStreaming="isStreaming" StreamingText="streamingText" />
+
     @if (isWaitingForResponse && !isStreaming)
     {
         <div class="text-xs text-slate-400">AI is typing…</div>
     }
-    @* Streaming bubble rendered inside ChatWindow *@
+
     <ChatInput OnSend="HandleSend" />
 </section>
 
@@ -19,48 +25,92 @@
     private long typingTicket; // increments per send to invalidate old timeouts
     private bool isStreaming;
     private string streamingText = string.Empty;
+    private int _deltaCount;
+    private System.Threading.Timer? _renderTimer;
+
+    [Inject] private ILogger<Home>? Log { get; set; }
 
     [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
         var baseUri = Nav.BaseUri.TrimEnd('/');
         hubConnection = new HubConnectionBuilder()
-        .WithUrl(new Uri(new Uri(baseUri + "/"), "hubs/chat"))
+        .WithUrl(new Uri(new Uri(baseUri + "/"), "hubs/chat"), options =>
+        {
+            // Configure for minimal buffering
+            options.SkipNegotiation = false;
+            options.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.WebSockets;
+        })
         .WithAutomaticReconnect()
+        .ConfigureLogging(lb =>
+        {
+            // Reduce logging in production, keep essential connection info
+            lb.SetMinimumLevel(LogLevel.Warning);
+            lb.AddFilter("Microsoft.AspNetCore.SignalR", LogLevel.Warning);
+            lb.AddFilter("Microsoft.AspNetCore.Http.Connections", LogLevel.Warning);
+            lb.AddConsole();
+        })
         .Build();
 
-        hubConnection.On<ChatMessageModel>("ReceiveMessage", (msg) =>
+        hubConnection.On<ChatMessageModel>("ReceiveMessage", async (msg) =>
         {
             messages.Add(msg);
             // Hide typing indicator when any non-user message arrives (agent names may vary)
             if (!msg.IsUser) isWaitingForResponse = false;
-            InvokeAsync(StateHasChanged);
+            await InvokeAsync(StateHasChanged);
         });
 
-        hubConnection.On<string>("ReceiveStreamStart", (agentName) =>
+        hubConnection.On<string>("ReceiveStreamStart", async (agentName) =>
         {
+            _deltaCount = 0;
             isStreaming = true;
             streamingText = string.Empty;
             isWaitingForResponse = false; // suppress typing banner during streaming
-            InvokeAsync(StateHasChanged);
+
+            // Start render timer for smooth streaming updates (every 100ms)
+            _renderTimer = new System.Threading.Timer(_ =>
+    {
+            InvokeAsync(async () =>
+    {
+            StateHasChanged();
+        // Auto-scroll to bottom during streaming
+            await Task.Delay(1);
+            await JS.InvokeVoidAsync("ias.scrollToBottom", "#chat-window");
+        });
+        }, null, TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(100));
+
+            await InvokeAsync(StateHasChanged);
         });
 
-        hubConnection.On<string>("ReceiveStreamDelta", (delta) =>
+        hubConnection.On<string>("ReceiveStreamDelta", async (delta) =>
         {
+            _deltaCount++;
+
+            // Update the text INSIDE InvokeAsync to ensure it's on the UI thread
+            await InvokeAsync(() =>
+    {
             streamingText += delta;
-            InvokeAsync(StateHasChanged);
+            StateHasChanged();
+        });
         });
 
-        hubConnection.On("ReceiveStreamEnd", () =>
+        hubConnection.On("ReceiveStreamEnd", async () =>
         {
+            // Stop the render timer
+            _renderTimer?.Dispose();
+            _renderTimer = null;
+
             isStreaming = false;
             messages.Add(new ChatMessageModel(streamingText, "ai", DateTimeOffset.Now));
             streamingText = string.Empty;
-            InvokeAsync(StateHasChanged);
+            await InvokeAsync(StateHasChanged);
         });
 
         await hubConnection.StartAsync();
+        Log?.LogInformation("[CLIENT] Hub connected at={Time}", DateTime.UtcNow.ToString("O"));
 
         // Seed a friendly greeting
         messages.Add(new ChatMessageModel("Hello! I’m your AI assistant.", "ai", DateTimeOffset.Now));
@@ -100,5 +150,11 @@
                 await InvokeAsync(StateHasChanged);
             }
         }
+    }
+
+    public void Dispose()
+    {
+        _renderTimer?.Dispose();
+        hubConnection?.DisposeAsync();
     }
 }

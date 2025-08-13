@@ -1,0 +1,50 @@
+@using Microsoft.Extensions.Logging
+@inject ILogger<StreamingDiagnostics>? Log
+
+<div class="bg-black/20 p-2 text-xs font-mono rounded">
+    <div>Stream Status: @(IsStreaming ? "ACTIVE" : "IDLE")</div>
+    <div>Last Delta: @LastDeltaTime.ToString("HH:mm:ss.fff")</div>
+    <div>Render Count: @RenderCount</div>
+    <div>Delta Count: @DeltaCount</div>
+    <div>Current Length: @CurrentLength</div>
+    <div>Render Rate: @($"{RenderRate:F1} Hz")</div>
+</div>
+
+@code {
+    [Parameter] public bool IsStreaming { get; set; }
+    [Parameter] public string? StreamingText { get; set; }
+
+    private DateTime LastDeltaTime = DateTime.Now;
+    private int RenderCount = 0;
+    private int DeltaCount = 0;
+    private int CurrentLength = 0;
+    private int LastLength = 0;
+    private DateTime LastRenderTime = DateTime.Now;
+    private double RenderRate = 0;
+
+    protected override void OnParametersSet()
+    {
+        var now = DateTime.Now;
+        RenderCount++;
+
+        var newLength = StreamingText?.Length ?? 0;
+        if (newLength != LastLength)
+        {
+            DeltaCount++;
+            LastDeltaTime = now;
+            LastLength = newLength;
+        }
+
+        CurrentLength = newLength;
+
+        var timeSinceLastRender = (now - LastRenderTime).TotalSeconds;
+        if (timeSinceLastRender > 0)
+        {
+            RenderRate = 1.0 / timeSinceLastRender;
+        }
+        LastRenderTime = now;
+
+        Log?.LogDebug("[DIAG] Render #{Render} Delta #{Delta} Len={Len} Rate={Rate:F1}Hz",
+            RenderCount, DeltaCount, CurrentLength, RenderRate);
+    }
+}

@@ -17,12 +17,30 @@ public class ChatHub(IChatResponder responder) : Hub
         var ct = Context.ConnectionAborted;
         try
         {
-            await Clients.Caller.SendAsync("ReceiveStreamStart", responder.Name);
-            await foreach (var piece in responder.StreamResponseAsync(message, sessionId, ct))
+            await foreach (var evt in responder.StreamResponseAsync(message, sessionId, ct))
             {
-                await Clients.Caller.SendAsync("ReceiveStreamDelta", piece);
+                switch (evt.Kind)
+                {
+                    case StreamingChatEventKind.Start:
+                        await Clients.Caller.SendAsync("ReceiveStreamStart", evt.Agent);
+                        break;
+                    case StreamingChatEventKind.Delta:
+                        if (!string.IsNullOrEmpty(evt.TextDelta))
+                        {
+                            await Clients.Caller.SendAsync("ReceiveStreamDelta", evt.TextDelta);
+                            // Force immediate delivery by yielding control
+                            await Task.Yield();
+                        }
+                        break;
+                    case StreamingChatEventKind.End:
+                        await Clients.Caller.SendAsync("ReceiveStreamEnd");
+                        break;
+                    case StreamingChatEventKind.Error:
+                        await Clients.Caller.SendAsync("ReceiveStreamDelta", "[Response failed]");
+                        await Clients.Caller.SendAsync("ReceiveStreamEnd");
+                        break;
+                }
             }
-            await Clients.Caller.SendAsync("ReceiveStreamEnd");
         }
         catch
         {

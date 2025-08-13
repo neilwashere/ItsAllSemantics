@@ -1,6 +1,7 @@
 @using ItsAllSemantics.Web.Models
 @using ItsAllSemantics.Web.Components
 @inject IJSRuntime JS
+@inject ILogger<ChatWindow>? Log
 
 <div id="chat-window" class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
     @if (Messages is { Count: > 0 })
@@ -45,6 +46,8 @@
 
     private int _lastMessageCount;
     private int _lastStreamingLength;
+    private long _lastRenderTicks;
+    private DateTime _lastScrollAt = DateTime.MinValue;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -57,7 +60,24 @@
             {
                 _lastMessageCount = count;
                 _lastStreamingLength = streamLen;
-                await JS.InvokeVoidAsync("ias.scrollToBottom", "#chat-window");
+                var now = System.Diagnostics.Stopwatch.GetTimestamp();
+                var dt = (_lastRenderTicks == 0) ? 0 : (now - _lastRenderTicks) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                Log?.LogDebug("[RENDER] ChatWindow scroll -> msgs={Msgs} streamLen={Len} dtSinceLastRender={DtMs:F1}ms", count,
+                streamLen, dt);
+                _lastRenderTicks = now;
+                // Throttle scroll interop while streaming to avoid blocking render pipeline
+                if (IsStreaming)
+                {
+                    if ((DateTime.UtcNow - _lastScrollAt) > TimeSpan.FromMilliseconds(100))
+                    {
+                        _lastScrollAt = DateTime.UtcNow;
+                        _ = JS.InvokeVoidAsync("ias.scrollToBottom", "#chat-window");
+                    }
+                }
+                else
+                {
+                    await JS.InvokeVoidAsync("ias.scrollToBottom", "#chat-window");
+                }
             }
         }
     }
