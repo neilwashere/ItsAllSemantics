@@ -22,4 +22,7 @@ public sealed class ChatMessageModel(string text, string author, DateTimeOffset 
 
     /// <summary>Indicates the message content is an error representation (no valid AI response).</summary>
     public bool IsError => ErrorCode is not null;
+
+    /// <summary>Total number of tokens (or token-like delta fragments) produced for this assistant message, if known.</summary>
+    public int? TokenCount { get; init; }
 }

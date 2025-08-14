@@ -42,6 +42,8 @@ else
 {
     builder.Services.AddSingleton<IChatResponder, EchoChatResponder>();
 }
+// Single-agent orchestrator (multiplex-ready meta enrichment)
+builder.Services.AddSingleton<IChatOrchestrator, SingleAgentChatOrchestrator>();
 builder.Services.AddSingleton<IChatStreamManager, ChatStreamManager>();
 
 var app = builder.Build();

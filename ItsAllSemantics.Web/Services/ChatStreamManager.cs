@@ -20,16 +20,16 @@ public interface IChatStreamManager
 internal sealed class ChatStreamManager : IChatStreamManager
 {
     private readonly IHubContext<ChatHub> _hub;
-    private readonly IChatResponder _responder;
+    private readonly IChatOrchestrator _orchestrator;
     private readonly ILogger<ChatStreamManager> _log;
 
     private sealed record Active(string StreamId, CancellationTokenSource Cts, Task Runner);
     private readonly ConcurrentDictionary<string, Active> _active = new();
 
-    public ChatStreamManager(IHubContext<ChatHub> hub, IChatResponder responder, ILogger<ChatStreamManager> log)
+    public ChatStreamManager(IHubContext<ChatHub> hub, IChatOrchestrator orchestrator, ILogger<ChatStreamManager> log)
     {
         _hub = hub;
-        _responder = responder;
+        _orchestrator = orchestrator;
         _log = log;
     }
 
@@ -82,29 +82,29 @@ internal sealed class ChatStreamManager : IChatStreamManager
         string? streamId = null;
         try
         {
-            await foreach (var evt in _responder.StreamResponseAsync(userMessage, connectionId, token))
+            await foreach (var evt in _orchestrator.OrchestrateAsync(userMessage, connectionId, token))
             {
                 switch (evt.Kind)
                 {
                     case StreamingChatEventKind.Start:
                         streamId = evt.StreamId;
                         _active.AddOrUpdate(connectionId, _ => new Active(streamId, linkedCts, Task.CompletedTask), (_, existing) => existing with { StreamId = streamId });
-                        await _hub.Clients.Client(connectionId).SendAsync("ReceiveStreamStart", evt.StreamId, evt.Agent);
+                        await _hub.Clients.Client(connectionId).SendAsync("ReceiveStreamStart", evt.StreamId, evt.Agent, evt.Meta ?? new Dictionary<string, string>());
                         _log.LogInformation("[STREAM] Start connection={ConnectionId} streamId={StreamId}", connectionId, streamId);
                         break;
                     case StreamingChatEventKind.Delta:
                         if (!string.IsNullOrEmpty(evt.TextDelta))
                         {
-                            await _hub.Clients.Client(connectionId).SendAsync("ReceiveStreamDelta", evt.TextDelta);
+                            await _hub.Clients.Client(connectionId).SendAsync("ReceiveStreamDelta", evt.TextDelta, evt.Meta ?? new Dictionary<string, string>());
                         }
                         break;
                     case StreamingChatEventKind.End:
-                        await _hub.Clients.Client(connectionId).SendAsync("ReceiveStreamEnd");
+                        await _hub.Clients.Client(connectionId).SendAsync("ReceiveStreamEnd", evt.Meta ?? new Dictionary<string, string>());
                         _log.LogInformation("[STREAM] End connection={ConnectionId} streamId={StreamId}", connectionId, evt.StreamId);
                         _active.TryRemove(connectionId, out _);
                         break;
                     case StreamingChatEventKind.Error:
-                        await _hub.Clients.Client(connectionId).SendAsync("ReceiveStreamError", evt.ErrorCode, evt.ErrorMessage, evt.IsTransient ?? false);
+                        await _hub.Clients.Client(connectionId).SendAsync("ReceiveStreamError", evt.ErrorCode, evt.ErrorMessage, evt.IsTransient ?? false, evt.Meta ?? new Dictionary<string, string>());
                         _log.LogInformation("[STREAM] Error connection={ConnectionId} streamId={StreamId} code={Code}", connectionId, evt.StreamId, evt.ErrorCode);
                         _active.TryRemove(connectionId, out _);
                         break;
@@ -125,11 +125,11 @@ internal sealed class ChatStreamManager : IChatStreamManager
         {
             if (failure is OperationCanceledException)
             {
-                await _hub.Clients.Client(connectionId).SendAsync("ReceiveStreamError", "Canceled", "Generation canceled.", false);
+                await _hub.Clients.Client(connectionId).SendAsync("ReceiveStreamError", "Canceled", "Generation canceled.", false, new Dictionary<string, string> { { "status", "canceled" } });
             }
             else if (failure is not null)
             {
-                await _hub.Clients.Client(connectionId).SendAsync("ReceiveStreamError", "Unhandled", "Something went wrong while generating a response.", false);
+                await _hub.Clients.Client(connectionId).SendAsync("ReceiveStreamError", "Unhandled", "Something went wrong while generating a response.", false, new Dictionary<string, string> { { "status", "unhandled" } });
             }
             _active.TryRemove(connectionId, out _);
         }

@@ -54,7 +54,8 @@
                     <div class="chat-bubble from-ai streaming">
                         <div class="bubble-meta">
                             <i class="fa-solid fa-robot"></i>
-                            <span>Assistant</span>
+                                <span>@(currentAgent ?? "Assistant")</span>
+                                <span class="ml-2 text-[10px] opacity-60">@currentTokenCount tok</span>
                             <time>@DateTime.Now.ToString("t")</time>
                         </div>
                         <div class="bubble-text">@streamingText<span class="ias-caret"></span></div>
@@ -71,6 +72,12 @@
 
     <form @onsubmit="HandleSubmit" @onsubmit:preventDefault class="chat-input-container sticky bottom-0 left-0 right-0 z-20 px-4 pb-2 pt-3 backdrop-blur-sm @ChatFontClass">
             <div class="bg-[#3b3a3f]/95 border border-[#494b53] rounded-xl p-2 flex flex-col gap-2 shadow-xl ring-1 ring-black/40">
+                <div class="flex justify-between items-center px-1">
+                    <div class="text-[11px] uppercase tracking-wide text-slate-400">Chat</div>
+                    <button type="button" class="text-[11px] px-2 py-0.5 rounded border border-[#494b53] hover:bg-[#494b53] transition" @onclick="() => ToggleDiagnostics()">
+                        @(showDiagnostics ? "Hide Diagnostics" : "Show Diagnostics")
+                    </button>
+                </div>
                 <textarea @bind="pendingMessage" @bind:event="oninput" rows="1" data-autosize data-chat-input
                           placeholder="Message ItsAllSemantics..." class="w-full bg-transparent focus:outline-none p-2 text-[#FCFCFA] resize-none leading-6 custom-scrollbar max-h-56 overflow-y-auto @ChatFontClass"></textarea>
                 <div class="flex justify-end gap-2">
@@ -96,6 +103,39 @@
     </div>
 </section>
 
+@if (showDiagnostics)
+{
+    <div class="fixed bottom-24 right-4 w-96 max-h-[50vh] overflow-y-auto text-xs bg-[#2d2a2e]/95 backdrop-blur border border-[#494b53] rounded-lg shadow-xl p-3 space-y-2 custom-scrollbar">
+        <div class="flex justify-between items-center">
+            <div class="font-semibold text-[#a9dc76]">Streaming Diagnostics</div>
+            <button class="text-[10px] px-2 py-0.5 rounded border border-[#494b53] hover:bg-[#494b53]" @onclick="()=>{ diagnosticsEvents.Clear(); StateHasChanged(); }">Clear</button>
+        </div>
+        <div class="grid grid-cols-1 gap-1">
+            @if (diagnosticsEvents.Count == 0)
+            {
+                <div class="text-slate-400">No events captured yet.</div>
+            }
+            else
+            {
+                @foreach (var ev in diagnosticsEvents.TakeLast(400).Reverse())
+                {
+                    var cls = ev.TryGetValue("_event", out var kind) ? kind switch { "delta" => "text-[#78dce8]", "error" => "text-[#ff6188]", "end" => "text-[#a9dc76]", _ => "text-slate-300" } : "text-slate-300";
+                    <div class="border border-[#494b53] rounded px-2 py-1 leading-4 break-words">
+                        <div class="font-mono text-[10px] @cls">
+                            @if (ev.TryGetValue("_event", out var ek)) { <span>@ek</span>; }
+                            @if (ev.TryGetValue("globalSeq", out var gs)) { <span> g:@gs</span>; }
+                            @if (ev.TryGetValue("agentSeq", out var ags)) { <span> a:@ags</span>; }
+                            @if (ev.TryGetValue("tokenCount", out var tk)) { <span> tok:@tk</span>; }
+                            @if (ev.TryGetValue("_deltaLen", out var dl)) { <span> len:@dl</span>; }
+                            @if (ev.TryGetValue("status", out var st)) { <span> status:@st</span>; }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+}
+
 @code {
     [CascadingParameter] public string? ChatFontClass { get; set; }
     private readonly List<ChatMessageModel> messages = [];
@@ -105,6 +145,10 @@
     private bool isStreaming;
     private string? currentStreamId;
     private bool cancelRequested;
+    private string? currentAgent;
+    private int currentTokenCount;
+        private bool showDiagnostics;
+        private List<Dictionary<string,string>> diagnosticsEvents = new();
     private string streamingText = string.Empty;
     private long typingTicket;
     private System.Threading.Timer? _renderTimer;
@@ -140,13 +184,16 @@
             await InvokeAsync(StateHasChanged);
         });
 
-        hubConnection.On<string, string>("ReceiveStreamStart", async (streamId, agent) =>
+        hubConnection.On<string, string, Dictionary<string, string>>("ReceiveStreamStart", async (streamId, agent, meta) =>
         {
             isStreaming = true;
             streamingText = string.Empty;
             isWaitingForResponse = false;
             currentStreamId = streamId;
             cancelRequested = false;
+            currentAgent = agent;
+            currentTokenCount = 0;
+                if (showDiagnostics) diagnosticsEvents.Add(new Dictionary<string,string>(meta) { ["_event"] = "start" });
             _renderTimer = new System.Threading.Timer(_ =>
             {
                 InvokeAsync(async () =>
@@ -159,28 +206,43 @@
             await InvokeAsync(StateHasChanged);
         });
 
-        hubConnection.On<string>("ReceiveStreamDelta", async (delta) =>
+        hubConnection.On<string, Dictionary<string, string>>("ReceiveStreamDelta", async (delta, meta) =>
         {
             await InvokeAsync(() =>
             {
                 streamingText += delta;
+            currentTokenCount++;
+                    if (showDiagnostics)
+                    {
+                        var copy = new Dictionary<string,string>(meta) { ["_event"] = "delta", ["_deltaLen"] = delta.Length.ToString() };
+                        diagnosticsEvents.Add(copy);
+                    }
                 StateHasChanged();
             });
         });
 
-        hubConnection.On("ReceiveStreamEnd", async () =>
+        hubConnection.On<Dictionary<string, string>>("ReceiveStreamEnd", async meta =>
         {
             _renderTimer?.Dispose();
             _renderTimer = null;
             isStreaming = false;
-            messages.Add(new ChatMessageModel(streamingText, "ai", DateTimeOffset.Now));
+                int? finalTokens = null;
+                if (meta.TryGetValue("tokenCount", out var tc) && int.TryParse(tc, out var tcParsed)) finalTokens = tcParsed;
+                messages.Add(new ChatMessageModel(streamingText, "ai", DateTimeOffset.Now) { TokenCount = finalTokens });
             streamingText = string.Empty;
             currentStreamId = null;
+            currentAgent = null;
             cancelRequested = false;
+                if (showDiagnostics)
+                {
+                    var copy = new Dictionary<string,string>(meta) { ["_event"] = "end" };
+                    diagnosticsEvents.Add(copy);
+                }
             await InvokeAsync(StateHasChanged);
         });
 
-        hubConnection.On<string, string, bool>("ReceiveStreamError", async (code, message, isTransient) =>
+        hubConnection.On<string, string, bool, Dictionary<string, string>>("ReceiveStreamError", async (code, message,
+        isTransient, meta) =>
         {
             _renderTimer?.Dispose();
             _renderTimer = null;
@@ -199,7 +261,13 @@
             }
             streamingText = string.Empty;
             currentStreamId = null;
+            currentAgent = null;
             cancelRequested = false;
+                if (showDiagnostics)
+                {
+                    var copy = new Dictionary<string,string>(meta) { ["_event"] = "error", ["_code"] = code };
+                    diagnosticsEvents.Add(copy);
+                }
             await InvokeAsync(StateHasChanged);
         });
 
@@ -297,5 +365,11 @@
             cancelRequested = false;
         }
         await InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleDiagnostics()
+    {
+        showDiagnostics = !showDiagnostics;
+        StateHasChanged();
     }
 }

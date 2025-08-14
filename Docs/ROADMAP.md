@@ -58,7 +58,24 @@ Use the [WireFrame](./WireFrame.html) for guide
 * [x] Hub translates events to client SignalR methods: ReceiveStreamStart/Delta/End.
 * [x] Client accumulates deltas into `streamingText` and materializes final message on End.
 
-### **Phase 4: Context & Deployment**
+### **Pase 4: Agent Orchestration**
+
+Building on our chatresponder, we are going to demonstrate
+various orchestration patterns available in Semantic Kernel.
+
+For each type of mode, an example from the SK source is provided. We
+will try to keep as close to the framework implementaiton as possible.
+Some of the API is still under heavy development - this is ok, we want to evolve along with the library over time
+
+* [ ] **Group Chat**
+  * [ ] Human In The Loop. We want to demonstrate how agent orchestration with HITL might operate. Our user will both kickstart
+  the process and also provide feedback in order to refine, adjust, approve. https://github.com/microsoft/semantic-kernel/blob/main/dotnet/samples/GettingStartedWithAgents/Orchestration/Step03a_GroupChatWithHumanInTheLoop.cs
+  * [ ] Concurrent with structured output. Demonstrate how multiple agents can operate on the same item at once and produce structured
+  text with a transformer.
+  - https://github.com/microsoft/semantic-kernel/blob/main/dotnet/samples/GettingStartedWithAgents/Orchestration/Step01a_ConcurrentWithStructuredOutput.cs
+  - https://github.com/microsoft/semantic-kernel/blob/main/dotnet/samples/GettingStartedWithAgents/Orchestration/Step01_Concurrent.cs
+
+### **Phase 5: Context & Deployment**
 
 * [x] **Conversation Context:**
   * [x] Server-side per-session ChatHistory retained across messages (multi-turn working).
@@ -68,7 +85,7 @@ Use the [WireFrame](./WireFrame.html) for guide
   * [x] Centralize SK exceptions -> structured Error event with user-friendly message.
   * [x] Client cancellation ("Stop generating") to propagate CancellationToken.
 * [ ] **Deployment:**
-### **Phase 5: Enhancements & Polish (Planned)**
+### **Phase 6: Enhancements & Polish (Planned)**
 * [x] Introduce cancel (stop) button during streaming (client -> hub cancellation).
 * [ ] Add agent name/avatar mapping (use `Agent` property from StreamingChatEvent).
 * [ ] Adaptive scroll strategy: pause auto-scroll if user scrolls up.
