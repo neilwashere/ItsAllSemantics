@@ -16,4 +16,10 @@ public sealed class ChatMessageModel(string text, string author, DateTimeOffset 
 
     /// <summary>True when the author is the user.</summary>
     public bool IsUser => string.Equals(Author, "user", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Optional stable error code if this message represents a failed generation.</summary>
+    public string? ErrorCode { get; init; }
+
+    /// <summary>Indicates the message content is an error representation (no valid AI response).</summary>
+    public bool IsError => ErrorCode is not null;
 }

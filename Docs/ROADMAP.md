@@ -60,14 +60,12 @@ Use the [WireFrame](./WireFrame.html) for guide
 
 ### **Phase 4: Context & Deployment**
 
-### **Phase 4: Context & Deployment**
-
 * [x] **Conversation Context:**
   * [x] Server-side per-session ChatHistory retained across messages (multi-turn working).
   * [ ] Persist history store beyond memory (optional: distributed cache / DB) for reconnect/resume.
 * [ ] **Error Handling:**
   * [x] Hub wraps streaming in try/catch and emits fallback End on failure.
-  * [ ] Centralize SK exceptions -> structured Error event with user-friendly message.
+  * [x] Centralize SK exceptions -> structured Error event with user-friendly message.
   * [ ] Client cancellation ("Stop generating") to propagate CancellationToken.
 * [ ] **Deployment:**
 ### **Phase 5: Enhancements & Polish (Planned)**

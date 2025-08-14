@@ -96,6 +96,10 @@ h1:focus {
 .chat-bubble .bubble-meta i { font-size:0.7rem; opacity:0.9; }
 .chat-bubble .bubble-meta time { margin-left:auto; font-weight:500; opacity:0.55; }
 .chat-bubble .bubble-text { line-height:1.5; white-space:pre-wrap; word-break:break-word; }
+.chat-bubble.from-ai.error {
+    border: 1px solid #f55;
+    box-shadow: 0 0 0 1px #f55 inset;
+}
 /* (old timestamp class removed; replaced by meta/time) */
 
 /* Input adjustments */

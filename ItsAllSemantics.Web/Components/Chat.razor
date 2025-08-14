@@ -18,7 +18,7 @@
             {
                 var isUser = message.IsUser;
                 <div class="flex @(isUser ? "justify-end" : "justify-start")" style="max-width:100%;">
-                    <div class="chat-bubble @(isUser ? "from-user" : "from-ai")">
+                    <div class="chat-bubble @(isUser ? "from-user" : (message.IsError ? "from-ai error" : "from-ai"))">
                         <div class="bubble-meta">
                             @if (isUser)
                             {
@@ -29,6 +29,10 @@
                             {
                                 <i class="fa-solid fa-robot"></i>
                                 <span>Assistant</span>
+                                @if (message.IsError)
+                                {
+                                    <span class="ml-2 text-red-400 font-semibold" title="@message.ErrorCode">error</span>
+                                }
                             }
                             <time>@message.Timestamp.LocalDateTime.ToString("t")</time>
                         </div>
@@ -152,6 +156,17 @@
             _renderTimer = null;
             isStreaming = false;
             messages.Add(new ChatMessageModel(streamingText, "ai", DateTimeOffset.Now));
+            streamingText = string.Empty;
+            await InvokeAsync(StateHasChanged);
+        });
+
+        hubConnection.On<string, string, bool>("ReceiveStreamError", async (code, message, isTransient) =>
+        {
+            _renderTimer?.Dispose();
+            _renderTimer = null;
+            var text = string.IsNullOrWhiteSpace(streamingText) ? message : streamingText + "\n[error] " + message;
+            isStreaming = false;
+            messages.Add(new ChatMessageModel(text, "ai", DateTimeOffset.Now) { ErrorCode = code });
             streamingText = string.Empty;
             await InvokeAsync(StateHasChanged);
         });

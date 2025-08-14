@@ -33,6 +33,7 @@ builder.Services.AddSignalR(options =>
 // Feature flag controls which responder is used
 var useSk = builder.Configuration.GetValue<bool>("Features:UseSemanticKernel");
 builder.Services.Configure<SemanticKernelOptions>(builder.Configuration.GetSection("SemanticKernel"));
+builder.Services.AddSingleton<IChatExceptionTranslator, DefaultChatExceptionTranslator>();
 if (useSk)
 {
     builder.Services.AddSingleton<IChatResponder, SemanticKernelChatResponder>();

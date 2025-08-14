@@ -18,8 +18,9 @@ public sealed class SemanticKernelChatResponder : IChatResponder
     private readonly ConcurrentDictionary<string, AgentThread> _threads = new();
     private readonly IChatCompletionService _chat;
     private readonly ConcurrentDictionary<string, ChatHistory> _histories = new();
+    private readonly IChatExceptionTranslator _exceptionTranslator;
 
-    public SemanticKernelChatResponder(IOptions<SemanticKernelOptions> options)
+    public SemanticKernelChatResponder(IOptions<SemanticKernelOptions> options, IChatExceptionTranslator? exceptionTranslator = null)
     {
         _options = options.Value;
         var builder = Kernel.CreateBuilder();
@@ -45,6 +46,7 @@ public sealed class SemanticKernelChatResponder : IChatResponder
             Instructions = "You are a concise, helpful assistant. Keep answers short unless asked to elaborate.",
             Kernel = _kernel
         };
+        _exceptionTranslator = exceptionTranslator ?? new DefaultChatExceptionTranslator();
     }
 
     private AgentThread GetOrCreateThread(string sessionId)
@@ -94,37 +96,68 @@ public sealed class SemanticKernelChatResponder : IChatResponder
         yield return new StreamingChatEvent { Kind = StreamingChatEventKind.Start, StreamId = streamId, Agent = Name };
 
         var builder = new System.Text.StringBuilder();
-        await foreach (var part in _chat.GetStreamingChatMessageContentsAsync(history, executionSettings: null, _kernel, ct))
+        Exception? failure = null;
+        var stream = _chat.GetStreamingChatMessageContentsAsync(history, executionSettings: null, _kernel, ct);
+        var e = stream.GetAsyncEnumerator(ct);
+        try
         {
-            // Prefer fine-grained items when available
-            if (part is StreamingChatMessageContent msg)
+            while (true)
             {
-                bool yielded = false;
-                if (msg.Items is not null)
+                bool moved;
+                try
                 {
-                    foreach (var item in msg.Items)
+                    moved = await e.MoveNextAsync();
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                    break;
+                }
+                if (!moved) break;
+
+                if (e.Current is StreamingChatMessageContent msg)
+                {
+                    bool any = false;
+                    if (msg.Items is not null)
                     {
-                        if (item is StreamingTextContent st && !string.IsNullOrEmpty(st.Text))
+                        foreach (var item in msg.Items)
                         {
-                            builder.Append(st.Text);
-                            yield return new StreamingChatEvent { Kind = StreamingChatEventKind.Delta, StreamId = streamId, Agent = Name, TextDelta = st.Text };
-                            yielded = true;
+                            if (item is StreamingTextContent st && !string.IsNullOrEmpty(st.Text))
+                            {
+                                builder.Append(st.Text);
+                                yield return new StreamingChatEvent { Kind = StreamingChatEventKind.Delta, StreamId = streamId, Agent = Name, TextDelta = st.Text };
+                                any = true;
+                            }
                         }
                     }
-                }
-
-                // Fallback to message-level content
-                if (!yielded && !string.IsNullOrEmpty(msg.Content))
-                {
-                    builder.Append(msg.Content);
-                    yield return new StreamingChatEvent { Kind = StreamingChatEventKind.Delta, StreamId = streamId, Agent = Name, TextDelta = msg.Content };
+                    if (!any && !string.IsNullOrEmpty(msg.Content))
+                    {
+                        builder.Append(msg.Content);
+                        yield return new StreamingChatEvent { Kind = StreamingChatEventKind.Delta, StreamId = streamId, Agent = Name, TextDelta = msg.Content };
+                    }
                 }
             }
         }
+        finally
+        {
+            await e.DisposeAsync();
+        }
 
-        var final = builder.ToString();
-        history.Add(new ChatMessageContent(AuthorRole.Assistant, final));
-        yield return new StreamingChatEvent { Kind = StreamingChatEventKind.End, StreamId = streamId, Agent = Name, FinalText = final };
+        if (failure is null)
+        {
+            var final = builder.ToString();
+            history.Add(new ChatMessageContent(AuthorRole.Assistant, final));
+            yield return new StreamingChatEvent { Kind = StreamingChatEventKind.End, StreamId = streamId, Agent = Name, FinalText = final };
+        }
+        else
+        {
+            var info = _exceptionTranslator.Translate(failure);
+            if (failure is not OperationCanceledException)
+            {
+                history.Add(new ChatMessageContent(AuthorRole.Assistant, $"[error:{info.Code}] {info.Message}"));
+            }
+            yield return new StreamingChatEvent { Kind = StreamingChatEventKind.Error, StreamId = streamId, Agent = Name, ErrorCode = info.Code, ErrorMessage = info.Message, IsTransient = info.IsTransient };
+        }
     }
 
     public void RemoveSession(string sessionId)

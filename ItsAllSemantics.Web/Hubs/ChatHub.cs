@@ -36,17 +36,15 @@ public class ChatHub(IChatResponder responder) : Hub
                         await Clients.Caller.SendAsync("ReceiveStreamEnd");
                         break;
                     case StreamingChatEventKind.Error:
-                        await Clients.Caller.SendAsync("ReceiveStreamDelta", "[Response failed]");
-                        await Clients.Caller.SendAsync("ReceiveStreamEnd");
+                        await Clients.Caller.SendAsync("ReceiveStreamError", evt.ErrorCode, evt.ErrorMessage, evt.IsTransient ?? false);
                         break;
                 }
             }
         }
         catch
         {
-            // On error, still close the stream and provide a fallback message chunk
-            await Clients.Caller.SendAsync("ReceiveStreamDelta", "[Response failed]");
-            await Clients.Caller.SendAsync("ReceiveStreamEnd");
+            // On unexpected hub-level error emit generic error event
+            await Clients.Caller.SendAsync("ReceiveStreamError", "Unhandled", "Something went wrong while generating a response.", false);
         }
     }
 

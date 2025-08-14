@@ -18,4 +18,7 @@ public sealed class StreamingChatEvent
     public string? FinalText { get; init; }
     public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.Now;
     public IDictionary<string, string>? Meta { get; init; }
+    public string? ErrorCode { get; init; }
+    public string? ErrorMessage { get; init; }
+    public bool? IsTransient { get; init; }
 }
