@@ -58,22 +58,32 @@ Use the [WireFrame](./WireFrame.html) for guide
 * [x] Hub translates events to client SignalR methods: ReceiveStreamStart/Delta/End.
 * [x] Client accumulates deltas into `streamingText` and materializes final message on End.
 
-### **Pase 4: Agent Orchestration**
+### **Phase 4: Agent Orchestration**
 
-Building on our chatresponder, we are going to demonstrate
-various orchestration patterns available in Semantic Kernel.
+Goal: Evolve from single-agent streaming to multi-agent orchestration with a unified multiplexed event stream.
 
-For each type of mode, an example from the SK source is provided. We
-will try to keep as close to the framework implementaiton as possible.
-Some of the API is still under heavy development - this is ok, we want to evolve along with the library over time
+Implemented (Demo Layer):
+* [x] `IChatOrchestrator` abstraction (single + demo multi-agent) decoupling responders from orchestration policy.
+* [x] Demo concurrent orchestrator (`MultiAgentDemoOrchestrator`) with synthetic agents (Echoer, Fetcher) sharing one streamId.
+* [x] Metadata schema: `agent`, `agentSeq`, `globalSeq`, `status`, `mode=concurrent`, plus token counting on End.
+* [x] Client concurrent visualization: per-agent live bubbles, independent completion indicator, unified diagnostics.
+* [x] Agent avatars / color chips and name surfacing in history (Echoer, Fetcher, Orchestrator).
+* [x] Diagnostics panel extended to show sequencing, tokenCount, delta length.
+* [x] Orchestrator summary End event currently SUPPRESSED (will return for real SK multi-agent).
 
-* [ ] **Group Chat**
-  * [ ] Human In The Loop. We want to demonstrate how agent orchestration with HITL might operate. Our user will both kickstart
-  the process and also provide feedback in order to refine, adjust, approve. https://github.com/microsoft/semantic-kernel/blob/main/dotnet/samples/GettingStartedWithAgents/Orchestration/Step03a_GroupChatWithHumanInTheLoop.cs
-  * [ ] Concurrent with structured output. Demonstrate how multiple agents can operate on the same item at once and produce structured
-  text with a transformer.
-  - https://github.com/microsoft/semantic-kernel/blob/main/dotnet/samples/GettingStartedWithAgents/Orchestration/Step01a_ConcurrentWithStructuredOutput.cs
-  - https://github.com/microsoft/semantic-kernel/blob/main/dotnet/samples/GettingStartedWithAgents/Orchestration/Step01_Concurrent.cs
+Next (Real SK Integration):
+* [ ] Integrate Semantic Kernel concurrent orchestration (Step01_Concurrent.cs parity).
+* [ ] Add structured output transformer example (Step01a_ConcurrentWithStructuredOutput.cs parity) – display JSON capsule or parsed fields.
+* [ ] Group Chat with Human-In-The-Loop (Step03a) – inject user approvals / edits mid-orchestration.
+* [ ] Re-enable orchestrator summary message containing aggregate stats (per-agent token counts, durations) & optional markdown roll-up.
+* [ ] Mode selection UI (dropdown / command) replacing dual flags with a single enum (SingleEcho, SingleSK, MultiDemo, MultiSKConcurrent, MultiSKGroup...).
+* [ ] Per-agent cancellation or selective continuation controls.
+* [ ] Agent capability badges (tool / retrieval / transform icons) in avatar hover tooltip.
+
+Stretch / Later:
+* [ ] Metrics collection (latency per agent, tokens/sec) surfaced in diagnostics.
+* [ ] Automatic retry of transient agent errors with exponential backoff meta flagged.
+* [ ] Streaming partial structured output validation (schema-driven) with client highlighting.
 
 ### **Phase 5: Context & Deployment**
 
@@ -87,13 +97,14 @@ Some of the API is still under heavy development - this is ok, we want to evolve
 * [ ] **Deployment:**
 ### **Phase 6: Enhancements & Polish (Planned)**
 * [x] Introduce cancel (stop) button during streaming (client -> hub cancellation).
-* [ ] Add agent name/avatar mapping (use `Agent` property from StreamingChatEvent).
+* [x] Agent name/avatar mapping (leveraging `Agent` metadata).
+* [x] Diagnostics toggle & event meta viewer (development only) with sequencing & token metrics.
 * [ ] Adaptive scroll strategy: pause auto-scroll if user scrolls up.
 * [ ] Persist conversation history (per user) using a backing store.
 * [ ] Add markdown rendering for AI responses (with sanitization).
-* [ ] Add basic tests for Echo responder and event translation.
-* [ ] Add diagnostics toggle component (StreamingDiagnostics) only in Development.
-* [ ] Improve accessibility (ARIA live region for streaming content).
+* [ ] Add basic tests (Echo responder, orchestrator translation, multi-agent concurrency ordering).
+* [ ] Accessibility: ARIA live region for streaming & focus management after send.
+* [ ] Theming & font controls persisted (user preference store).
 
 ### **Completed Summary**
 Core chat, multi-turn context, and streaming event-driven pipeline are implemented. Remaining work centers on resilience (cancellation, persistence), richer rendering (markdown), and deployment hardening.

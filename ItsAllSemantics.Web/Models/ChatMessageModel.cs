@@ -25,4 +25,7 @@ public sealed class ChatMessageModel(string text, string author, DateTimeOffset 
 
     /// <summary>Total number of tokens (or token-like delta fragments) produced for this assistant message, if known.</summary>
     public int? TokenCount { get; init; }
+
+    /// <summary>Optional agent identity when Author is an AI system (e.g., specific tool/agent name).</summary>
+    public string? Agent { get; init; }
 }

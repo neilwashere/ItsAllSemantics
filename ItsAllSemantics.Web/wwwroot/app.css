@@ -137,3 +137,10 @@ button:focus-visible, textarea:focus-visible { outline:2px solid #78DCE8; outlin
 #blazor-error-ui a { color:#fff; text-decoration:underline; }
 #blazor-error-ui .dismiss { cursor:pointer; margin-left:0.75rem; }
 #blazor-error-ui.show { display:block; }
+
+/* Agent avatar chips */
+.agent-avatar { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; font-size:11px; font-weight:600; border-radius:4px; margin-right:6px; background:#555; color:#fff; text-transform:uppercase; box-shadow:0 0 0 1px rgba(255,255,255,0.08),0 1px 2px rgba(0,0,0,0.5); }
+.agent-avatar.agent-echoer { background: linear-gradient(135deg,#A9DC76,#78DCE8); color:#1d1d1f; }
+.agent-avatar.agent-fetcher { background: linear-gradient(135deg,#FFD866,#FC6188); color:#2d2a2e; }
+.agent-avatar.agent-orchestrator { background: linear-gradient(135deg,#AB9DF2,#78DCE8); color:#1d1d1f; }
+.agent-avatar.agent-default { background:#666; }

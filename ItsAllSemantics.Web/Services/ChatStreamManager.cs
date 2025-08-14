@@ -99,7 +99,10 @@ internal sealed class ChatStreamManager : IChatStreamManager
                         }
                         break;
                     case StreamingChatEventKind.End:
-                        await _hub.Clients.Client(connectionId).SendAsync("ReceiveStreamEnd", evt.Meta ?? new Dictionary<string, string>());
+                        var endMeta = evt.Meta ?? new Dictionary<string, string>();
+                        await _hub.Clients.Client(connectionId).SendAsync("ReceiveStreamEnd", endMeta);
+                        // NOTE: Orchestrator summary message (FinalText) intentionally suppressed for now.
+                        // Roadmap item: re-enable summary emission when real SK multi-agent orchestration modes are added.
                         _log.LogInformation("[STREAM] End connection={ConnectionId} streamId={StreamId}", connectionId, evt.StreamId);
                         _active.TryRemove(connectionId, out _);
                         break;

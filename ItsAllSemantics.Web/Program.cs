@@ -42,8 +42,17 @@ else
 {
     builder.Services.AddSingleton<IChatResponder, EchoChatResponder>();
 }
-// Single-agent orchestrator (multiplex-ready meta enrichment)
-builder.Services.AddSingleton<IChatOrchestrator, SingleAgentChatOrchestrator>();
+var useMultiAgentDemo = builder.Configuration.GetValue<bool>("Features:UseMultiAgentDemo");
+if (useMultiAgentDemo)
+{
+    builder.Services.AddHttpClient();
+    builder.Services.AddSingleton<IChatOrchestrator, MultiAgentDemoOrchestrator>();
+}
+else
+{
+    // Single-agent orchestrator (multiplex-ready meta enrichment)
+    builder.Services.AddSingleton<IChatOrchestrator, SingleAgentChatOrchestrator>();
+}
 builder.Services.AddSingleton<IChatStreamManager, ChatStreamManager>();
 
 var app = builder.Build();

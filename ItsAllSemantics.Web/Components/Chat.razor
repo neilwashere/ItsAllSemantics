@@ -29,8 +29,16 @@
                             }
                             else
                             {
-                                <i class="fa-solid fa-robot"></i>
-                                <span>Assistant</span>
+                                if (!string.IsNullOrWhiteSpace(message.Agent))
+                                {
+                                    <span class="agent-avatar @GetAgentAvatarClass(message.Agent)" title="@message.Agent">@GetAgentAvatarLabel(message.Agent)</span>
+                                    <span>@message.Agent</span>
+                                }
+                                else
+                                {
+                                    <i class="fa-solid fa-robot"></i>
+                                    <span>Assistant</span>
+                                }
                                 @if (message.IsError)
                                 {
                                     <span class="ml-2 text-red-400 font-semibold" title="@message.ErrorCode">error</span>
@@ -50,17 +58,50 @@
 
             @if (isStreaming)
             {
-                <div class="flex justify-start" style="max-width:100%;">
-                    <div class="chat-bubble from-ai streaming">
-                        <div class="bubble-meta">
-                            <i class="fa-solid fa-robot"></i>
-                                <span>@(currentAgent ?? "Assistant")</span>
-                                <span class="ml-2 text-[10px] opacity-60">@currentTokenCount tok</span>
-                            <time>@DateTime.Now.ToString("t")</time>
-                        </div>
-                        <div class="bubble-text">@streamingText<span class="ias-caret"></span></div>
+                if (isConcurrentMode && agentStreams.Count > 0)
+                {
+                    <div class="space-y-3">
+                        @foreach (var kvp in agentStreams.OrderBy(k => k.Key))
+                        {
+                            var agentName = kvp.Key;
+                            var s = kvp.Value;
+                            <div class="flex justify-start" style="max-width:100%;">
+                                <div class="chat-bubble from-ai streaming">
+                                    <div class="bubble-meta">
+                                        <span class="agent-avatar @GetAgentAvatarClass(agentName)" title="@agentName">@GetAgentAvatarLabel(agentName)</span>
+                                        <span>@agentName</span>
+                                        <span class="ml-2 text-[10px] opacity-60">@s.TokenCount tok</span>
+                                        @if (!s.Completed) { <span class="ml-1 animate-pulse text-[9px] opacity-60">…</span>; }
+                                        <time>@DateTime.Now.ToString("t")</time>
+                                    </div>
+                                    <div class="bubble-text">@s.Buffer<span class="ias-caret"></span></div>
+                                </div>
+                            </div>
+                        }
                     </div>
-                </div>
+                }
+                else
+                {
+                    <div class="flex justify-start" style="max-width:100%;">
+                        <div class="chat-bubble from-ai streaming">
+                            <div class="bubble-meta">
+                                @if (!string.IsNullOrWhiteSpace(currentAgent))
+                                {
+                                    <span class="agent-avatar @GetAgentAvatarClass(currentAgent)" title="@currentAgent">@GetAgentAvatarLabel(currentAgent)</span>
+                                    <span>@currentAgent</span>
+                                }
+                                else
+                                {
+                                    <i class="fa-solid fa-robot"></i>
+                                    <span>Assistant</span>
+                                }
+                                <span class="ml-2 text-[10px] opacity-60">@currentTokenCount tok</span>
+                                <time>@DateTime.Now.ToString("t")</time>
+                            </div>
+                            <div class="bubble-text">@streamingText<span class="ias-caret"></span></div>
+                        </div>
+                    </div>
+                }
             }
             </div>
         </div>
@@ -149,7 +190,9 @@
     private int currentTokenCount;
         private bool showDiagnostics;
         private List<Dictionary<string,string>> diagnosticsEvents = new();
-    private string streamingText = string.Empty;
+    private string streamingText = string.Empty; // single-mode buffer
+    private bool isConcurrentMode;
+    private readonly Dictionary<string, AgentStreamState> agentStreams = new();
     private long typingTicket;
     private System.Threading.Timer? _renderTimer;
 
@@ -193,6 +236,8 @@
             cancelRequested = false;
             currentAgent = agent;
             currentTokenCount = 0;
+            isConcurrentMode = meta.TryGetValue("mode", out var modeVal) && modeVal == "concurrent";
+            agentStreams.Clear();
                 if (showDiagnostics) diagnosticsEvents.Add(new Dictionary<string,string>(meta) { ["_event"] = "start" });
             _renderTimer = new System.Threading.Timer(_ =>
             {
@@ -210,8 +255,23 @@
         {
             await InvokeAsync(() =>
             {
-                streamingText += delta;
-            currentTokenCount++;
+                if (isConcurrentMode && meta.TryGetValue("agent", out var ag))
+                {
+                    if (!agentStreams.TryGetValue(ag, out var st))
+                    {
+                        st = new AgentStreamState();
+                        agentStreams[ag] = st;
+                    }
+                    if (!string.IsNullOrEmpty(delta)) st.Buffer.Append(delta);
+                    if (!string.IsNullOrEmpty(delta)) st.TokenCount++;
+                    currentTokenCount++;
+                    if (meta.TryGetValue("status", out var stat) && stat == "agent-end") st.Completed = true;
+                }
+                else
+                {
+                    streamingText += delta;
+                    currentTokenCount++;
+                }
                     if (showDiagnostics)
                     {
                         var copy = new Dictionary<string,string>(meta) { ["_event"] = "delta", ["_deltaLen"] = delta.Length.ToString() };
@@ -226,13 +286,25 @@
             _renderTimer?.Dispose();
             _renderTimer = null;
             isStreaming = false;
+            if (isConcurrentMode && agentStreams.Count > 0)
+            {
+                foreach (var kvp in agentStreams.OrderBy(k => k.Key))
+                {
+                    var ag = kvp.Key; var st = kvp.Value;
+                    messages.Add(new ChatMessageModel(st.Buffer.ToString(), "ai", DateTimeOffset.Now) { TokenCount = st.TokenCount, Agent = ag });
+                }
+            }
+            else
+            {
                 int? finalTokens = null;
                 if (meta.TryGetValue("tokenCount", out var tc) && int.TryParse(tc, out var tcParsed)) finalTokens = tcParsed;
-                messages.Add(new ChatMessageModel(streamingText, "ai", DateTimeOffset.Now) { TokenCount = finalTokens });
+                messages.Add(new ChatMessageModel(streamingText, "ai", DateTimeOffset.Now) { TokenCount = finalTokens, Agent = currentAgent });
+            }
             streamingText = string.Empty;
             currentStreamId = null;
             currentAgent = null;
             cancelRequested = false;
+            agentStreams.Clear();
                 if (showDiagnostics)
                 {
                     var copy = new Dictionary<string,string>(meta) { ["_event"] = "end" };
@@ -371,5 +443,27 @@
     {
         showDiagnostics = !showDiagnostics;
         StateHasChanged();
+    }
+
+    private sealed class AgentStreamState
+    {
+        public System.Text.StringBuilder Buffer { get; } = new();
+        public int TokenCount { get; set; }
+        public bool Completed { get; set; }
+    }
+
+    private static string GetAgentAvatarClass(string agent) => agent?.Trim().ToLowerInvariant() switch
+    {
+        "echoer" => "agent-echoer",
+        "fetcher" => "agent-fetcher",
+        "orchestrator" => "agent-orchestrator",
+        _ => "agent-default"
+    };
+
+    private static string GetAgentAvatarLabel(string agent)
+    {
+        if (string.IsNullOrWhiteSpace(agent)) return "?";
+        // Use first letter; optionally special symbols
+        return agent.Trim()[0].ToString().ToUpperInvariant();
     }
 }
