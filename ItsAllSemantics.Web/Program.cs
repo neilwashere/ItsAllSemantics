@@ -42,6 +42,7 @@ else
 {
     builder.Services.AddSingleton<IChatResponder, EchoChatResponder>();
 }
+builder.Services.AddSingleton<IChatStreamManager, ChatStreamManager>();
 
 var app = builder.Build();
 

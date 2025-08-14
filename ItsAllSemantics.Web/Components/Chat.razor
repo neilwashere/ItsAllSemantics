@@ -72,11 +72,22 @@
                 <textarea @bind="pendingMessage" @bind:event="oninput" rows="1" data-autosize data-chat-input
                           placeholder="Message ItsAllSemantics..." class="w-full bg-transparent focus:outline-none p-2 text-sm text-[#FCFCFA] resize-none leading-6 custom-scrollbar max-h-56 overflow-y-auto"></textarea>
                 <div class="flex justify-end gap-2">
-                    <button type="submit" data-ias-send aria-label="Send" title="Send"
+                    @if (isStreaming && currentStreamId is not null)
+                    {
+                        <button type="button" @onclick="CancelActive"
+                            class="bg-[#FF6188] hover:bg-[#FC9867] transition-colors text-[#2D2A2E] font-bold w-10 h-10 flex items-center justify-center rounded-full disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled="@cancelRequested" title="Cancel generation" aria-label="Cancel generation">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="submit" data-ias-send aria-label="Send" title="Send"
                             class="bg-[#78DCE8] hover:bg-[#A9DC76] transition-colors text-[#2D2A2E] font-bold w-10 h-10 flex items-center justify-center rounded-full disabled:opacity-40 disabled:cursor-not-allowed"
                             disabled="@string.IsNullOrWhiteSpace(pendingMessage)">
-                        <i class="fas fa-arrow-up"></i>
-                    </button>
+                            <i class="fas fa-arrow-up"></i>
+                        </button>
+                    }
                 </div>
             </div>
         </form>
@@ -89,6 +100,8 @@
     private string? pendingMessage;
     private bool isWaitingForResponse;
     private bool isStreaming;
+    private string? currentStreamId;
+    private bool cancelRequested;
     private string streamingText = string.Empty;
     private long typingTicket;
     private System.Threading.Timer? _renderTimer;
@@ -124,11 +137,13 @@
             await InvokeAsync(StateHasChanged);
         });
 
-        hubConnection.On<string>("ReceiveStreamStart", async _ =>
+        hubConnection.On<string, string>("ReceiveStreamStart", async (streamId, agent) =>
         {
             isStreaming = true;
             streamingText = string.Empty;
             isWaitingForResponse = false;
+            currentStreamId = streamId;
+            cancelRequested = false;
             _renderTimer = new System.Threading.Timer(_ =>
             {
                 InvokeAsync(async () =>
@@ -157,6 +172,8 @@
             isStreaming = false;
             messages.Add(new ChatMessageModel(streamingText, "ai", DateTimeOffset.Now));
             streamingText = string.Empty;
+            currentStreamId = null;
+            cancelRequested = false;
             await InvokeAsync(StateHasChanged);
         });
 
@@ -164,10 +181,22 @@
         {
             _renderTimer?.Dispose();
             _renderTimer = null;
-            var text = string.IsNullOrWhiteSpace(streamingText) ? message : streamingText + "\n[error] " + message;
+            var canceled = code == "Canceled";
+            var text = string.IsNullOrWhiteSpace(streamingText)
+    ? (canceled ? "[canceled]" : message)
+    : streamingText + (canceled ? "\n[canceled]" : "\n[error] " + message);
             isStreaming = false;
-            messages.Add(new ChatMessageModel(text, "ai", DateTimeOffset.Now) { ErrorCode = code });
+            if (!canceled)
+            {
+                messages.Add(new ChatMessageModel(text, "ai", DateTimeOffset.Now) { ErrorCode = code });
+            }
+            else
+            {
+                messages.Add(new ChatMessageModel(text, "ai", DateTimeOffset.Now));
+            }
             streamingText = string.Empty;
+            currentStreamId = null;
+            cancelRequested = false;
             await InvokeAsync(StateHasChanged);
         });
 
@@ -179,7 +208,7 @@
 
     private async Task HandleSubmit()
     {
-        if (string.IsNullOrWhiteSpace(pendingMessage) || hubConnection is null) return;
+        if (string.IsNullOrWhiteSpace(pendingMessage) || hubConnection is null || isStreaming) return;
     var text = pendingMessage;
     pendingMessage = string.Empty; // hub echo will add user message
 
@@ -248,5 +277,22 @@
     {
         _renderTimer?.Dispose();
         hubConnection?.DisposeAsync();
+    }
+
+    private async Task CancelActive()
+    {
+        if (hubConnection is null || currentStreamId is null) return;
+        try
+        {
+            Log?.LogInformation("[CLIENT] Cancellation requested streamId={StreamId}", currentStreamId);
+            cancelRequested = true;
+            await hubConnection.SendAsync("CancelStream", currentStreamId);
+        }
+        catch (Exception ex)
+        {
+            Log?.LogWarning(ex, "Cancel failed");
+            cancelRequested = false;
+        }
+        await InvokeAsync(StateHasChanged);
     }
 }

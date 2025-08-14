@@ -108,6 +108,11 @@ public sealed class SemanticKernelChatResponder : IChatResponder
                 {
                     moved = await e.MoveNextAsync();
                 }
+                catch (OperationCanceledException oce)
+                {
+                    failure = oce;
+                    break;
+                }
                 catch (Exception ex)
                 {
                     failure = ex;
@@ -148,6 +153,11 @@ public sealed class SemanticKernelChatResponder : IChatResponder
             var final = builder.ToString();
             history.Add(new ChatMessageContent(AuthorRole.Assistant, final));
             yield return new StreamingChatEvent { Kind = StreamingChatEventKind.End, StreamId = streamId, Agent = Name, FinalText = final };
+        }
+        else if (failure is OperationCanceledException)
+        {
+            var info = _exceptionTranslator.Translate(failure);
+            yield return new StreamingChatEvent { Kind = StreamingChatEventKind.Error, StreamId = streamId, Agent = Name, ErrorCode = info.Code, ErrorMessage = info.Message, IsTransient = info.IsTransient };
         }
         else
         {

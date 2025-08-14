@@ -66,10 +66,10 @@ Use the [WireFrame](./WireFrame.html) for guide
 * [ ] **Error Handling:**
   * [x] Hub wraps streaming in try/catch and emits fallback End on failure.
   * [x] Centralize SK exceptions -> structured Error event with user-friendly message.
-  * [ ] Client cancellation ("Stop generating") to propagate CancellationToken.
+  * [x] Client cancellation ("Stop generating") to propagate CancellationToken.
 * [ ] **Deployment:**
 ### **Phase 5: Enhancements & Polish (Planned)**
-* [ ] Introduce cancel (stop) button during streaming (client -> hub cancellation).
+* [x] Introduce cancel (stop) button during streaming (client -> hub cancellation).
 * [ ] Add agent name/avatar mapping (use `Agent` property from StreamingChatEvent).
 * [ ] Micro-batching option (coalesce very rapid small token deltas <20ms apart).
 * [ ] Adaptive scroll strategy: pause auto-scroll if user scrolls up.

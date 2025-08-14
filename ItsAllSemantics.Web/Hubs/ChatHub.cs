@@ -1,59 +1,40 @@
 using ItsAllSemantics.Web.Models;
 using ItsAllSemantics.Web.Services;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging;
 
 namespace ItsAllSemantics.Web.Hubs;
 
-public class ChatHub(IChatResponder responder) : Hub
+/// <summary>
+/// SignalR Hub endpoint for chat interactions. Streaming execution is delegated to IChatStreamManager
+/// so that cancellation can occur while a stream is active.
+/// </summary>
+public class ChatHub(IChatResponder responder, IChatStreamManager streamManager, ILogger<ChatHub> logger) : Hub
 {
     public async Task SendMessage(string message)
     {
-        // Echo the user's message back for display
-        var userMsg = new ChatMessageModel(message, "user", DateTimeOffset.Now);
-        await Clients.Caller.SendAsync("ReceiveMessage", userMsg);
+        logger.LogInformation("[HUB] SendMessage connection={ConnectionId}", Context.ConnectionId);
+        await Clients.Caller.SendAsync("ReceiveMessage", new ChatMessageModel(message, "user", DateTimeOffset.Now));
+        await streamManager.StartAsync(Context.ConnectionId, message, Context.ConnectionAborted);
+    }
 
-        // Stream response via configured responder (echo or SK)
-        var sessionId = Context.ConnectionId;
-        var ct = Context.ConnectionAborted;
-        try
+    public async Task CancelStream(string streamId)
+    {
+        var ok = await streamManager.CancelAsync(Context.ConnectionId, streamId);
+        if (!ok)
         {
-            await foreach (var evt in responder.StreamResponseAsync(message, sessionId, ct))
-            {
-                switch (evt.Kind)
-                {
-                    case StreamingChatEventKind.Start:
-                        await Clients.Caller.SendAsync("ReceiveStreamStart", evt.Agent);
-                        break;
-                    case StreamingChatEventKind.Delta:
-                        if (!string.IsNullOrEmpty(evt.TextDelta))
-                        {
-                            await Clients.Caller.SendAsync("ReceiveStreamDelta", evt.TextDelta);
-                            // Force immediate delivery by yielding control
-                            await Task.Yield();
-                        }
-                        break;
-                    case StreamingChatEventKind.End:
-                        await Clients.Caller.SendAsync("ReceiveStreamEnd");
-                        break;
-                    case StreamingChatEventKind.Error:
-                        await Clients.Caller.SendAsync("ReceiveStreamError", evt.ErrorCode, evt.ErrorMessage, evt.IsTransient ?? false);
-                        break;
-                }
-            }
-        }
-        catch
-        {
-            // On unexpected hub-level error emit generic error event
-            await Clients.Caller.SendAsync("ReceiveStreamError", "Unhandled", "Something went wrong while generating a response.", false);
+            logger.LogInformation("[HUB] Cancel ignored connection={ConnectionId} streamId={StreamId}", Context.ConnectionId, streamId);
         }
     }
 
-    public override Task OnDisconnectedAsync(Exception? exception)
+    public override async Task OnDisconnectedAsync(Exception? exception)
     {
         if (responder is SemanticKernelChatResponder sk)
         {
             sk.RemoveSession(Context.ConnectionId);
         }
-        return base.OnDisconnectedAsync(exception);
+        await streamManager.DisconnectAsync(Context.ConnectionId);
+        logger.LogInformation("[HUB] Disconnected connection={ConnectionId}", Context.ConnectionId);
+        await base.OnDisconnectedAsync(exception);
     }
 }
