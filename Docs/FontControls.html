@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ItsAllSemantics - Font Controls Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #contentWrapper {
+            transition: font-size 0.2s ease-in-out;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #222327; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #494b53; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #7b7d8b; }
+    </style>
+</head>
+<body class="bg-[#2D2A2E] text-slate-300 flex flex-col h-screen">
+
+    <!-- Header -->
+    <header class="bg-[#222327]/80 backdrop-blur-sm shadow-md z-20 border-b border-[#3b3a3f] relative flex-shrink-0">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-xl font-semibold text-[#FCFCFA] tracking-wide">ItsAllSemantics</h1>
+            <button id="menuButton" class="text-slate-400 hover:text-[#78DCE8] transition-colors z-30">
+                <i class="fas fa-bars fa-lg"></i>
+            </button>
+        </div>
+
+        <!-- Dropdown Menu -->
+        <div id="settingsMenu" class="hidden absolute top-full right-4 mt-2 w-64 bg-[#2D2A2E] border border-[#3b3a3f] rounded-lg shadow-xl p-4 z-20">
+            <div class="space-y-4">
+                <!-- Font Size Control -->
+                <div>
+                    <label class="text-sm font-medium text-slate-400">Font Size</label>
+                    <div class="flex items-center justify-between mt-1 bg-[#222327] rounded-md p-2">
+                        <button id="decreaseFontSize" class="text-slate-400 hover:text-white"><i class="fas fa-chevron-left"></i></button>
+                        <span id="fontSizeDisplay" class="text-white font-semibold text-center w-20">Normal</span>
+                        <button id="increaseFontSize" class="text-slate-400 hover:text-white"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </div>
+
+                <!-- Font Weight Control -->
+                <div>
+                    <label class="text-sm font-medium text-slate-400">Font Weight</label>
+                    <div class="flex items-center justify-between mt-1 bg-[#222327] rounded-md p-2">
+                        <button id="decreaseFontWeight" class="text-slate-400 hover:text-white"><i class="fas fa-chevron-left"></i></button>
+                        <span id="fontWeightDisplay" class="text-white font-semibold text-center w-20">Normal</span>
+                        <button id="increaseFontWeight" class="text-slate-400 hover:text-white"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Content Wrapper for Font Styling -->
+    <div id="contentWrapper" class="flex-1 flex flex-col overflow-hidden">
+        <!-- Main Content (Chat Window) -->
+        <main class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar">
+            <div class="flex justify-start">
+                <div class="bg-[#3b3a3f] p-3 rounded-2xl rounded-bl-lg max-w-xl flex gap-3">
+                    <div class="w-8 h-8 rounded-full bg-[#A9DC76] flex items-center justify-center font-bold text-sm flex-shrink-0 text-[#2D2A2E]">AI</div>
+                    <!-- Removed text-sm class to allow inheritance -->
+                    <p class="text-[#FCFCFA]">Hello! Use the menu in the top right to adjust the font settings.</p>
+                </div>
+            </div>
+            <div class="flex justify-end">
+                <div class="bg-[#78DCE8] p-3 rounded-2xl rounded-br-lg max-w-xl flex gap-3">
+                     <!-- Removed text-sm and font-medium classes to allow inheritance -->
+                     <p class="text-[#2D2A2E]">This is a great feature for accessibility and user preference.</p>
+                     <div class="w-8 h-8 rounded-full bg-[#222327] flex items-center justify-center font-bold text-sm flex-shrink-0 text-white">You</div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer (User Input) -->
+        <footer class="bg-[#222327]/80 backdrop-blur-sm z-10 border-t border-[#3b3a3f] flex-shrink-0">
+            <div class="container mx-auto p-2 sm:p-4">
+                <div class="bg-[#3b3a3f] border border-[#494b53] rounded-xl p-2 flex flex-col">
+                    <!-- Removed text-sm class to allow inheritance -->
+                    <textarea placeholder="Message ItsAllSemantics..." class="w-full bg-transparent focus:outline-none p-2 text-[#FCFCFA] resize-none" rows="3"></textarea>
+                    <div class="flex justify-between items-center mt-2">
+                        <button class="text-[#7b7d8b] hover:text-[#A9DC76] transition-colors w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#494b53]"><i class="fas fa-plus fa-lg"></i></button>
+                        <button class="bg-[#78DCE8] hover:bg-[#A9DC76] transition-all text-[#2D2A2E] font-bold w-10 h-10 flex items-center justify-center rounded-full flex-shrink-0"><i class="fas fa-arrow-up"></i></button>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+<script>
+    // --- Elements ---
+    const menuButton = document.getElementById('menuButton');
+    const settingsMenu = document.getElementById('settingsMenu');
+    // **NEW**: Target the content wrapper instead of the whole body
+    const contentWrapper = document.getElementById('contentWrapper');
+
+    // Font Size Elements
+    const decreaseFontSizeBtn = document.getElementById('decreaseFontSize');
+    const increaseFontSizeBtn = document.getElementById('increaseFontSize');
+    const fontSizeDisplay = document.getElementById('fontSizeDisplay');
+
+    // Font Weight Elements
+    const decreaseFontWeightBtn = document.getElementById('decreaseFontWeight');
+    const increaseFontWeightBtn = document.getElementById('increaseFontWeight');
+    const fontWeightDisplay = document.getElementById('fontWeightDisplay');
+
+    // --- State ---
+    // **MODIFIED**: Using Tailwind classes for font size
+    const fontSizes = ['text-sm', 'text-base', 'text-lg'];
+    const fontSizeLabels = ['Small', 'Normal', 'Large'];
+    let currentFontSizeIndex = 1;
+
+    const fontWeights = ['font-normal', 'font-semibold', 'font-bold'];
+    const fontWeightLabels = ['Normal', 'Semibold', 'Bold'];
+    let currentFontWeightIndex = 0;
+
+    // --- Functions ---
+    function updateFontSize() {
+        // Remove all possible size classes before adding the correct one
+        contentWrapper.classList.remove(...fontSizes);
+        contentWrapper.classList.add(fontSizes[currentFontSizeIndex]);
+        fontSizeDisplay.textContent = fontSizeLabels[currentFontSizeIndex];
+    }
+
+    function updateFontWeight() {
+        // Remove all possible weight classes before adding the correct one
+        contentWrapper.classList.remove(...fontWeights);
+        contentWrapper.classList.add(fontWeights[currentFontWeightIndex]);
+        fontWeightDisplay.textContent = fontWeightLabels[currentFontWeightIndex];
+    }
+
+    // --- Event Listeners ---
+    menuButton.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent click from immediately closing the menu
+        settingsMenu.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!settingsMenu.contains(event.target) && !menuButton.contains(event.target)) {
+            settingsMenu.classList.add('hidden');
+        }
+    });
+
+    increaseFontSizeBtn.addEventListener('click', () => {
+        if (currentFontSizeIndex < fontSizes.length - 1) {
+            currentFontSizeIndex++;
+            updateFontSize();
+        }
+    });
+
+    decreaseFontSizeBtn.addEventListener('click', () => {
+        if (currentFontSizeIndex > 0) {
+            currentFontSizeIndex--;
+            updateFontSize();
+        }
+    });
+
+    increaseFontWeightBtn.addEventListener('click', () => {
+        if (currentFontWeightIndex < fontWeights.length - 1) {
+            currentFontWeightIndex++;
+            updateFontWeight();
+        }
+    });
+
+    decreaseFontWeightBtn.addEventListener('click', () => {
+        if (currentFontWeightIndex > 0) {
+            currentFontWeightIndex--;
+            updateFontWeight();
+        }
+    });
+
+    // --- Initial Setup ---
+    updateFontSize();
+    updateFontWeight();
+
+</script>
+
+</body>
+</html>

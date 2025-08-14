@@ -8,9 +8,11 @@
 
 <PageTitle>Chat</PageTitle>
 
+@using Microsoft.AspNetCore.Components
+
 <section class="flex flex-col flex-1 h-full min-h-0">
-    <div class="chat-shell w-full flex flex-col flex-1 relative min-h-0">
-    <div id="chat-window" class="chat-window edge-scroll flex-1 overflow-y-auto min-h-0">
+    <div class="chat-shell w-full flex flex-col flex-1 relative min-h-0 @ChatFontClass">
+    <div id="chat-window" class="chat-window edge-scroll flex-1 overflow-y-auto min-h-0 @ChatFontClass">
             <div class="max-w-4xl mx-auto w-full px-4 pt-6 pb-20 space-y-6">
         @if (messages is { Count: > 0 })
         {
@@ -67,10 +69,10 @@
         <div class="text-xs text-slate-400">AI is typing…</div>
     }
 
-    <form @onsubmit="HandleSubmit" @onsubmit:preventDefault class="chat-input-container sticky bottom-0 left-0 right-0 z-20 px-4 pb-2 pt-3 backdrop-blur-sm">
+    <form @onsubmit="HandleSubmit" @onsubmit:preventDefault class="chat-input-container sticky bottom-0 left-0 right-0 z-20 px-4 pb-2 pt-3 backdrop-blur-sm @ChatFontClass">
             <div class="bg-[#3b3a3f]/95 border border-[#494b53] rounded-xl p-2 flex flex-col gap-2 shadow-xl ring-1 ring-black/40">
                 <textarea @bind="pendingMessage" @bind:event="oninput" rows="1" data-autosize data-chat-input
-                          placeholder="Message ItsAllSemantics..." class="w-full bg-transparent focus:outline-none p-2 text-sm text-[#FCFCFA] resize-none leading-6 custom-scrollbar max-h-56 overflow-y-auto"></textarea>
+                          placeholder="Message ItsAllSemantics..." class="w-full bg-transparent focus:outline-none p-2 text-[#FCFCFA] resize-none leading-6 custom-scrollbar max-h-56 overflow-y-auto @ChatFontClass"></textarea>
                 <div class="flex justify-end gap-2">
                     @if (isStreaming && currentStreamId is not null)
                     {
@@ -95,6 +97,7 @@
 </section>
 
 @code {
+    [CascadingParameter] public string? ChatFontClass { get; set; }
     private readonly List<ChatMessageModel> messages = [];
     private HubConnection? hubConnection;
     private string? pendingMessage;

@@ -71,7 +71,6 @@ Use the [WireFrame](./WireFrame.html) for guide
 ### **Phase 5: Enhancements & Polish (Planned)**
 * [x] Introduce cancel (stop) button during streaming (client -> hub cancellation).
 * [ ] Add agent name/avatar mapping (use `Agent` property from StreamingChatEvent).
-* [ ] Micro-batching option (coalesce very rapid small token deltas <20ms apart).
 * [ ] Adaptive scroll strategy: pause auto-scroll if user scrolls up.
 * [ ] Persist conversation history (per user) using a backing store.
 * [ ] Add markdown rendering for AI responses (with sanitization).

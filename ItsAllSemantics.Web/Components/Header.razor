@@ -1,8 +1,84 @@
+
+
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+
+@code {
+    [Parameter] public int FontSizeIndex { get; set; }
+    [Parameter] public int FontWeightIndex { get; set; }
+    [Parameter] public EventCallback<int> OnFontSizeChanged { get; set; }
+    [Parameter] public EventCallback<int> OnFontWeightChanged { get; set; }
+
+    private bool menuOpen;
+    private readonly string[] fontSizeLabels = { "Small", "Normal", "Large" };
+    private readonly string[] fontWeightLabels = { "Normal", "Semibold", "Bold" };
+
+    private void ToggleMenu() => menuOpen = !menuOpen;
+
+    private async Task IncreaseFontSize()
+    {
+        if (FontSizeIndex < fontSizeLabels.Length - 1)
+        {
+            await JS.InvokeVoidAsync("window.localStorage.setItem", "ias-font-size-index", FontSizeIndex + 1);
+            await OnFontSizeChanged.InvokeAsync(FontSizeIndex + 1);
+        }
+    }
+    private async Task DecreaseFontSize()
+    {
+        if (FontSizeIndex > 0)
+        {
+            await JS.InvokeVoidAsync("window.localStorage.setItem", "ias-font-size-index", FontSizeIndex - 1);
+            await OnFontSizeChanged.InvokeAsync(FontSizeIndex - 1);
+        }
+    }
+    private async Task IncreaseFontWeight()
+    {
+        if (FontWeightIndex < fontWeightLabels.Length - 1)
+        {
+            await JS.InvokeVoidAsync("window.localStorage.setItem", "ias-font-weight-index", FontWeightIndex + 1);
+            await OnFontWeightChanged.InvokeAsync(FontWeightIndex + 1);
+        }
+    }
+    private async Task DecreaseFontWeight()
+    {
+        if (FontWeightIndex > 0)
+        {
+            await JS.InvokeVoidAsync("window.localStorage.setItem", "ias-font-weight-index", FontWeightIndex - 1);
+            await OnFontWeightChanged.InvokeAsync(FontWeightIndex - 1);
+        }
+    }
+}
+
 <header class="bg-[#222327]/80 backdrop-blur-sm shadow-md z-30 border-b border-[#3b3a3f] sticky top-0 left-0 right-0">
-    <div class="max-w-4xl mx-auto w-full px-4 py-3 flex justify-between items-center">
+    <div class="max-w-4xl mx-auto w-full px-4 py-3 flex justify-between items-center relative">
         <h1 class="text-xl font-semibold tracking-wide text-[#FCFCFA]">ItsAllSemantics</h1>
-        <button class="text-slate-400 hover:text-[#FF6188] transition-colors" title="Menu">
+        <button class="text-slate-400 hover:text-[#FF6188] transition-colors" title="Menu" @onclick="ToggleMenu">
             <i class="fas fa-bars fa-lg"></i>
         </button>
+        @if (menuOpen)
+        {
+            <div class="absolute top-full right-0 mt-2 w-64 bg-[#2D2A2E] border border-[#3b3a3f] rounded-lg shadow-xl p-4 z-20">
+                <div class="space-y-4">
+                    <!-- Font Size Control -->
+                    <div>
+                        <label class="text-sm font-medium text-slate-400">Font Size</label>
+                        <div class="flex items-center justify-between mt-1 bg-[#222327] rounded-md p-2">
+                            <button class="text-slate-400 hover:text-white" @onclick="DecreaseFontSize"><i class="fas fa-chevron-left"></i></button>
+                            <span class="text-white font-semibold text-center w-20">@fontSizeLabels[FontSizeIndex]</span>
+                            <button class="text-slate-400 hover:text-white" @onclick="IncreaseFontSize"><i class="fas fa-chevron-right"></i></button>
+                        </div>
+                    </div>
+                    <!-- Font Weight Control -->
+                    <div>
+                        <label class="text-sm font-medium text-slate-400">Font Weight</label>
+                        <div class="flex items-center justify-between mt-1 bg-[#222327] rounded-md p-2">
+                            <button class="text-slate-400 hover:text-white" @onclick="DecreaseFontWeight"><i class="fas fa-chevron-left"></i></button>
+                            <span class="text-white font-semibold text-center w-20">@fontWeightLabels[FontWeightIndex]</span>
+                            <button class="text-slate-400 hover:text-white" @onclick="IncreaseFontWeight"><i class="fas fa-chevron-right"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
     </div>
 </header>

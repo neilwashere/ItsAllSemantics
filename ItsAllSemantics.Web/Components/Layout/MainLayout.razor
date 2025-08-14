@@ -1,11 +1,34 @@
 ﻿@inherits LayoutComponentBase
 
+
+@using Microsoft.AspNetCore.Components
+@code {
+    private readonly string[] fontSizes = { "text-sm", "text-base", "text-lg" };
+    private readonly string[] fontWeights = { "font-normal", "font-semibold", "font-bold" };
+    private int fontSizeIndex = 1;
+    private int fontWeightIndex = 0;
+    public string ChatFontClass => $"{fontSizes[fontSizeIndex]} {fontWeights[fontWeightIndex]}";
+
+    public void SetFontSize(int idx)
+    {
+        fontSizeIndex = idx;
+        StateHasChanged();
+    }
+    public void SetFontWeight(int idx)
+    {
+        fontWeightIndex = idx;
+        StateHasChanged();
+    }
+}
+
 <div class="min-h-screen h-screen flex flex-col bg-[#2D2A2E] overflow-hidden">
-    <Header />
+    <Header FontSizeIndex="@fontSizeIndex" FontWeightIndex="@fontWeightIndex" OnFontSizeChanged="SetFontSize" OnFontWeightChanged="SetFontWeight" />
     <main class="flex-1 flex flex-col px-0 sm:px-4 py-4 sm:py-6 text-slate-300 overflow-hidden min-h-0">
         <div class="flex-1 flex flex-col min-h-0">
             <div class="max-w-4xl mx-auto flex-1 flex flex-col w-full min-h-0">
-                @Body
+                <CascadingValue Value="ChatFontClass">
+                    @Body
+                </CascadingValue>
             </div>
         </div>
     </main>
