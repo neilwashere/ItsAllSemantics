@@ -143,4 +143,13 @@ button:focus-visible, textarea:focus-visible { outline:2px solid #78DCE8; outlin
 .agent-avatar.agent-echoer { background: linear-gradient(135deg,#A9DC76,#78DCE8); color:#1d1d1f; }
 .agent-avatar.agent-fetcher { background: linear-gradient(135deg,#FFD866,#FC6188); color:#2d2a2e; }
 .agent-avatar.agent-orchestrator { background: linear-gradient(135deg,#AB9DF2,#78DCE8); color:#1d1d1f; }
+.agent-avatar.agent-summarizer {
+    background: linear-gradient(135deg, #6EE7B7, #3B82F6);
+    color: #0f172a;
+}
+
+.agent-avatar.agent-expander {
+    background: linear-gradient(135deg, #F472B6, #FBBF24);
+    color: #1e1b4b;
+}
 .agent-avatar.agent-default { background:#666; }

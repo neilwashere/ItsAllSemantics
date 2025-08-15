@@ -4,13 +4,41 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+  <NoWarn>$(NoWarn);SKEXP0110;SKEXP0001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.8" />
-    <PackageReference Include="Microsoft.SemanticKernel" Version="1.61.0" />
+  <!-- Use framework-provided server SignalR (remove legacy 1.2.0) and align client to runtime major version -->
+  <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.8" />
+    <!-- <PackageReference Include="Microsoft.SemanticKernel" Version="1.61.0" />
     <PackageReference Include="Microsoft.SemanticKernel.Agents.Core" Version="1.61.0" />
+    <PackageReference Include="Microsoft.SemanticKernel.Agents.Abstractions" Version="1.61.0" /> -->
+  </ItemGroup>
+  <ItemGroup>
+
+    <!-- <ProjectReference Include="../../semantic-kernel/dotnet/src/SemanticKernel.MetaPackage/SemanticKernel.MetaPackage.csproj" />
+    <ProjectReference Include="../../semantic-kernel/dotnet/src/SemanticKernel.Abstractions/SemanticKernel.Core.csproj" />
+    <ProjectReference Include="../../semantic-kernel/dotnet/src/SemanticKernel.Abstractions/SemanticKernel.Abstractions.csproj" />
+    <ProjectReference Include="../../semantic-kernel/dotnet/src/Agents/Agents.Core.csproj" />
+    <ProjectReference Include="../../semantic-kernel/dotnet/src/Agents/Abstractions/Agents.Abstractions.csproj" />
+      <ProjectReference Include="../../semantic-kernel/dotnet/src/Agents/Orchestration/Agents.Orchestration.csproj" /> -->
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../semantic-kernel/dotnet/src/Agents/A2A/Agents.A2A.csproj" />
+    <ProjectReference Include="../semantic-kernel/dotnet/src/Agents/AzureAI/Agents.AzureAI.csproj" />
+    <ProjectReference Include="../semantic-kernel/dotnet/src/Agents/Bedrock/Agents.Bedrock.csproj" />
+    <ProjectReference Include="../semantic-kernel/dotnet/src/Agents/Copilot/Agents.CopilotStudio.csproj" />
+    <ProjectReference Include="../semantic-kernel/dotnet/src/Agents/Core/Agents.Core.csproj" />
+    <ProjectReference Include="../semantic-kernel/dotnet/src/Agents/OpenAI/Agents.OpenAI.csproj" />
+    <ProjectReference Include="../semantic-kernel/dotnet/src/Agents/Orchestration/Agents.Orchestration.csproj" />
+    <ProjectReference Include="../semantic-kernel/dotnet/src/Agents/Magentic/Agents.Magentic.csproj" />
+    <ProjectReference Include="../semantic-kernel/dotnet/src/Agents/Runtime/InProcess/Runtime.InProcess.csproj" />
+    <ProjectReference Include="../semantic-kernel/dotnet/src/Agents/Yaml/Agents.Yaml.csproj" />
+    <ProjectReference Include="../semantic-kernel/dotnet/src/Connectors/Connectors.AzureOpenAI/Connectors.AzureOpenAI.csproj" />
+    <ProjectReference Include="../semantic-kernel/dotnet/src/Connectors/Connectors.Ollama/Connectors.Ollama.csproj" />
+    <ProjectReference Include="../semantic-kernel/dotnet/src/SemanticKernel.Abstractions/SemanticKernel.Abstractions.csproj" />
+    <ProjectReference Include="../semantic-kernel/dotnet/src/SemanticKernel.Core/SemanticKernel.Core.csproj" />
+    <ProjectReference Include="../semantic-kernel/dotnet/src/Functions/Functions.Yaml/Functions.Yaml.csproj" />
   </ItemGroup>
 
 </Project>

@@ -65,6 +65,7 @@ Goal: Evolve from single-agent streaming to multi-agent orchestration with a uni
 Implemented (Demo Layer):
 * [x] `IChatOrchestrator` abstraction (single + demo multi-agent) decoupling responders from orchestration policy.
 * [x] Demo concurrent orchestrator (`MultiAgentDemoOrchestrator`) with synthetic agents (Echoer, Fetcher) sharing one streamId.
+* [x] Experimental SK concurrent orchestrator (`SemanticKernelConcurrentOrchestrator`) with Summarizer + Expander agents (feature flag `UseMultiAgentSKConcurrent`).
 * [x] Metadata schema: `agent`, `agentSeq`, `globalSeq`, `status`, `mode=concurrent`, plus token counting on End.
 * [x] Client concurrent visualization: per-agent live bubbles, independent completion indicator, unified diagnostics.
 * [x] Agent avatars / color chips and name surfacing in history (Echoer, Fetcher, Orchestrator).
@@ -72,13 +73,24 @@ Implemented (Demo Layer):
 * [x] Orchestrator summary End event currently SUPPRESSED (will return for real SK multi-agent).
 
 Next (Real SK Integration):
-* [ ] Integrate Semantic Kernel concurrent orchestration (Step01_Concurrent.cs parity).
+* [ ] Harden experimental concurrent orchestrator toward full Step01_Concurrent.cs parity (streaming token-level deltas instead of chunked whole-response slices).
 * [ ] Add structured output transformer example (Step01a_ConcurrentWithStructuredOutput.cs parity) – display JSON capsule or parsed fields.
 * [ ] Group Chat with Human-In-The-Loop (Step03a) – inject user approvals / edits mid-orchestration.
 * [ ] Re-enable orchestrator summary message containing aggregate stats (per-agent token counts, durations) & optional markdown roll-up.
 * [ ] Mode selection UI (dropdown / command) replacing dual flags with a single enum (SingleEcho, SingleSK, MultiDemo, MultiSKConcurrent, MultiSKGroup...).
 * [ ] Per-agent cancellation or selective continuation controls.
 * [ ] Agent capability badges (tool / retrieval / transform icons) in avatar hover tooltip.
+
+Recent work: Concurrent Semantic Kernel orchestrator (completed)
+* [x] Implemented `SemanticKernelConcurrentOrchestrator` (feature-flagged via `UseMultiAgentSKConcurrent`).
+  * Per-agent Kernel instances created so each agent selects its own chat service/model.
+  * Wired up `ConcurrentOrchestration` with both `StreamingResponseCallback` and `ResponseCallback` to emit token/fragment deltas into the unified `StreamingChatEvent` stream.
+  * Added a lightweight preflight diagnostic call to validate model reachability and to emit a diagnostic delta when appropriate.
+  * Implemented a synthetic fallback injection when orchestrator streaming produces no deltas, plus a direct single-agent fallback (non-streaming + streaming) to verify service behavior.
+  * Final orchestration values are now retrieved and streamed as separate delta events (with sequencing metadata) to ensure the UI can materialize final agent output.
+  * Restored a clean, compile-safe reimplementation after prior refactor corruption; added structured logging to trace agent selection, sequences, and errors.
+  * Verified locally via runtime pump + diagnostics; next step: exercise in integration tests and end-to-end UI streaming to validate token-level behavior.
+
 
 Stretch / Later:
 * [ ] Metrics collection (latency per agent, tokens/sec) surfaced in diagnostics.

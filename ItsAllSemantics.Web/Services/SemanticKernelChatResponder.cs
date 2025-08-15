@@ -15,7 +15,6 @@ public sealed class SemanticKernelChatResponder : IChatResponder
     private readonly SemanticKernelOptions _options;
     private readonly Kernel _kernel;
     private readonly ChatCompletionAgent _agent;
-    private readonly ConcurrentDictionary<string, AgentThread> _threads = new();
     private readonly IChatCompletionService _chat;
     private readonly ConcurrentDictionary<string, ChatHistory> _histories = new();
     private readonly IChatExceptionTranslator _exceptionTranslator;
@@ -49,12 +48,6 @@ public sealed class SemanticKernelChatResponder : IChatResponder
         _exceptionTranslator = exceptionTranslator ?? new DefaultChatExceptionTranslator();
     }
 
-    private AgentThread GetOrCreateThread(string sessionId)
-    {
-        return _threads.GetOrAdd(sessionId, static _ =>
-            new ChatHistoryAgentThread([new ChatMessageContent(AuthorRole.System, "You are a helpful assistant. Be concise.")]));
-    }
-
     private ChatHistory GetOrCreateHistory(string sessionId)
     {
         return _histories.GetOrAdd(sessionId, static _ =>
@@ -67,18 +60,75 @@ public sealed class SemanticKernelChatResponder : IChatResponder
 
     public async Task<ChatMessageModel> GetResponseAsync(string userMessage, string sessionId, CancellationToken ct = default)
     {
-        var thread = GetOrCreateThread(sessionId);
+        var history = GetOrCreateHistory(sessionId);
+        history.Add(new ChatMessageContent(AuthorRole.User, userMessage));
 
-        var user = new ChatMessageContent(AuthorRole.User, userMessage);
-
-        ChatMessageContent? last = null;
-        await foreach (var response in _agent.InvokeAsync(user, thread, options: null, cancellationToken: ct))
+        var builder = new System.Text.StringBuilder();
+        Exception? failure = null;
+        var stream = _chat.GetStreamingChatMessageContentsAsync(history, executionSettings: null, _kernel, ct);
+        var e = stream.GetAsyncEnumerator(ct);
+        try
         {
-            last = response;
+            while (true)
+            {
+                bool moved;
+                try
+                {
+                    moved = await e.MoveNextAsync();
+                }
+                catch (OperationCanceledException oce)
+                {
+                    failure = oce;
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                    break;
+                }
+                if (!moved) break;
+
+                if (e.Current is StreamingChatMessageContent msg)
+                {
+                    if (msg.Items is not null)
+                    {
+                        foreach (var item in msg.Items)
+                        {
+                            if (item is StreamingTextContent st && !string.IsNullOrEmpty(st.Text))
+                            {
+                                builder.Append(st.Text);
+                            }
+                        }
+                    }
+                    if (!string.IsNullOrEmpty(msg.Content))
+                    {
+                        builder.Append(msg.Content);
+                    }
+                }
+            }
+        }
+        finally
+        {
+            await e.DisposeAsync();
         }
 
-        var content = last?.Content?.Trim();
-        if (string.IsNullOrWhiteSpace(content)) content = "(No response)";
+        string content;
+        if (failure is null)
+        {
+            content = builder.ToString();
+            history.Add(new ChatMessageContent(AuthorRole.Assistant, content));
+            if (string.IsNullOrWhiteSpace(content)) content = "(No response)";
+        }
+        else
+        {
+            var info = _exceptionTranslator.Translate(failure);
+            if (failure is not OperationCanceledException)
+            {
+                history.Add(new ChatMessageContent(AuthorRole.Assistant, $"[error:{info.Code}] {info.Message}"));
+            }
+            content = $"[error:{info.Code}] {info.Message}";
+        }
+
         return new ChatMessageModel(content, Name, DateTimeOffset.Now);
     }
 
@@ -172,7 +222,7 @@ public sealed class SemanticKernelChatResponder : IChatResponder
 
     public void RemoveSession(string sessionId)
     {
-        _threads.TryRemove(sessionId, out _);
+        _histories.TryRemove(sessionId, out _);
     }
 }
 

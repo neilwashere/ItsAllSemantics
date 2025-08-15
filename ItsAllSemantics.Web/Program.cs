@@ -42,8 +42,14 @@ else
 {
     builder.Services.AddSingleton<IChatResponder, EchoChatResponder>();
 }
+var useMultiAgentSkConcurrent = builder.Configuration.GetValue<bool>("Features:UseMultiAgentSKConcurrent");
 var useMultiAgentDemo = builder.Configuration.GetValue<bool>("Features:UseMultiAgentDemo");
-if (useMultiAgentDemo)
+if (useMultiAgentSkConcurrent)
+{
+    builder.Services.AddHttpClient();
+    builder.Services.AddSingleton<IChatOrchestrator, SemanticKernelConcurrentOrchestrator>();
+}
+else if (useMultiAgentDemo)
 {
     builder.Services.AddHttpClient();
     builder.Services.AddSingleton<IChatOrchestrator, MultiAgentDemoOrchestrator>();

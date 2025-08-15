@@ -484,3 +484,5 @@ $RECYCLE.BIN/
 *.swp
 
 appsettings.Development.json
+ItsAllSemantics.Console
+semantic-kernel
